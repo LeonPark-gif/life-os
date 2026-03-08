@@ -1,0 +1,230 @@
+services:
+  # ─────────────────────────────────────────────
+  # 1. CORE: Life OS
+  # ─────────────────────────────────────────────
+  life-os:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: life-os
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PORT=8099
+    volumes:
+      - life-os-config:/config
+      - life-os-logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8099', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ─────────────────────────────────────────────
+  # 2. UPDATER: Watchtower
+  # ─────────────────────────────────────────────
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_POLL_INTERVAL=86400 # Check once a day
+    networks:
+      - internal-network
+
+  # ─────────────────────────────────────────────
+  # 3. DOCUMENTS: Paperless-ngx Stack
+  # ─────────────────────────────────────────────
+  paperless-broker:
+    image: redis:7
+    container_name: paperless-broker
+    restart: unless-stopped
+    volumes:
+      - paperless-redis-data:/data
+    networks:
+      - internal-network
+
+  paperless-db:
+    image: postgres:15
+    container_name: paperless-db
+    restart: unless-stopped
+    volumes:
+      - paperless-pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASS:-paperless_pass_123}
+    networks:
+      - internal-network
+
+  paperless-gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: paperless-gotenberg
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+    networks:
+      - internal-network
+
+  paperless-tika:
+    image: apache/tika:latest
+    container_name: paperless-tika
+    restart: unless-stopped
+    networks:
+      - internal-network
+
+  paperless-web:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless-web
+    restart: unless-stopped
+    depends_on:
+      - paperless-db
+      - paperless-broker
+      - paperless-gotenberg
+      - paperless-tika
+    ports:
+      - "8000:8000"
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - ./paperless-export:/usr/src/paperless/export
+      - ./paperless-consume:/usr/src/paperless/consume
+    environment:
+      - PAPERLESS_REDIS=redis://paperless-broker:6379
+      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASS:-paperless_pass_123}
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://paperless-gotenberg:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://paperless-tika:9998
+      - PAPERLESS_URL=${PAPERLESS_URL:-}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_to_random_string}
+      - PAPERLESS_TIME_ZONE=Europe/Berlin
+      - PAPERLESS_OCR_LANGUAGE=deu
+    networks:
+      - internal-network
+
+  # ─────────────────────────────────────────────
+  # 4. FINANCES: Firefly III Stack
+  # ─────────────────────────────────────────────
+  firefly-db:
+    image: mariadb:lts
+    container_name: firefly-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - MYSQL_USER=firefly
+      - MYSQL_PASSWORD=${FIREFLY_DB_PASS:-firefly_db_secret}
+      - MYSQL_DATABASE=firefly
+    volumes:
+      - firefly-db-data:/var/lib/mysql
+    networks:
+      - internal-network
+
+  firefly-app:
+    image: fireflyiii/core:latest
+    container_name: firefly-app
+    restart: unless-stopped
+    depends_on:
+      - firefly-db
+    ports:
+      - "8080:8080"
+    volumes:
+      - firefly-upload:/var/www/html/storage/upload
+    environment:
+      - APP_KEY=${FIREFLY_APP_KEY:-SomeRandomStringOf32CharsExactly}
+      - APP_URL=${FIREFLY_URL:-http://localhost:8080}
+      - DB_CONNECTION=mysql
+      - DB_HOST=firefly-db
+      - DB_PORT=3306
+      - DB_DATABASE=firefly
+      - DB_USERNAME=firefly
+      - DB_PASSWORD=${FIREFLY_DB_PASS:-firefly_db_secret}
+      - TZ=Europe/Berlin
+    networks:
+      - internal-network
+
+  firefly-importer:
+    image: fireflyiii/data-importer:latest
+    container_name: firefly-importer
+    restart: unless-stopped
+    depends_on:
+      - firefly-app
+    ports:
+      - "8081:8080"
+    environment:
+      - FIREFLY_III_URL=http://firefly-app:8080
+      - VANITY_URL=${FIREFLY_URL:-http://localhost:8080}
+      - FIREFLY_III_ACCESS_TOKEN=${FIREFLY_PAT_TOKEN:-}
+      - CONNECTION_TIMEOUT=31.14
+    networks:
+      - internal-network
+
+  # ─────────────────────────────────────────────
+  # 5. VOICE: Wyoming Pipeline (Local STT & TTS)
+  # ─────────────────────────────────────────────
+  whisper:
+    image: rhasspy/wyoming-whisper
+    container_name: whisper
+    restart: unless-stopped
+    command: --model tiny-int8 --language de --beam-size 1
+    volumes:
+      - whisper-data:/data
+    ports:
+      - "10300:10300"
+    networks:
+      - internal-network
+
+  piper:
+    image: rhasspy/wyoming-piper
+    container_name: piper
+    restart: unless-stopped
+    command: --voice de_DE-thorsten-high
+    volumes:
+      - piper-data:/data
+    ports:
+      - "10200:10200"
+    networks:
+      - internal-network
+
+volumes:
+  life-os-config:
+  life-os-logs:
+  paperless-redis-data:
+  paperless-pgdata:
+  paperless-data:
+  paperless-media:
+  firefly-db-data:
+  firefly-upload:
+  whisper-data:
+  piper-data:
+
+
+networks:
+  internal-network:
+    driver: bridge
