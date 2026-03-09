@@ -193,7 +193,7 @@ app.post('/api/nextcloud/list', async (req, res) => {
 
         const { path: dirPath = '/' } = req.body;
         const directoryItems = await client.getDirectoryContents(dirPath);
-        
+
         const files = directoryItems.map(item => ({
             name: item.basename,
             path: item.filename,
@@ -767,10 +767,10 @@ if (fs.existsSync(DIST_DIR)) {
 // ─────────────────────────────────────────────
 // START
 // ─────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`DaSilva OS Addon listening on port ${PORT}`);
-    console.log(`- Dashboard: http://localhost:${PORT}`);
-    console.log(`- Mail API:  http://localhost:${PORT}/api/mail/`);
-    console.log(`- Backup API: http://localhost:${PORT}/api/backup/`);
+    console.log(`- Dashboard: http://0.0.0.0:${PORT}`);
+    console.log(`- Mail API:  http://0.0.0.0:${PORT}/api/mail/`);
+    console.log(`- Backup API: http://0.0.0.0:${PORT}/api/backup/`);
     ensureBackupDir();
 });
