@@ -17,6 +17,7 @@ import { SSEEngine } from './components/SSEEngine';
 import TabbieLayout from './components/TabbieLayout';
 import ScreentimeModule from './components/ScreentimeModule';
 import MailApp from './components/MailApp';
+import TabletDashboard from './components/TabletDashboard';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'mission' | 'tasks' | 'habits' | 'chrono' | 'workspaces' | 'screentime' | 'mail' | 'admin'>('mission');
@@ -170,6 +171,18 @@ export default function App() {
       reader.readAsText(file);
     }
   };
+  const isTabletMode = new URLSearchParams(window.location.search).get('tablet') === 'true';
+
+  if (isTabletMode) {
+    return (
+      <div className="relative w-full h-screen overflow-hidden text-white font-sans selection:bg-cyan-500/30">
+        <StatusLedEngine />
+        <SSEEngine />
+        <GlobalSparkBubble />
+        <TabletDashboard />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-screen overflow-hidden text-white font-sans selection:bg-cyan-500/30">
@@ -376,6 +389,15 @@ export default function App() {
                           onChange={(e) => useAppStore.getState().updateThemeConfig({ wallpaper: e.target.value })}
                           className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-sm focus:outline-none focus:border-emerald-500/50"
                         />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Dock Position</label>
+                        <div className="flex gap-2">
+                          <button onClick={() => useAppStore.getState().updateThemeConfig({ dockPosition: 'left' })} className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all ${user.themeConfig?.dockPosition === 'left' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>Links</button>
+                          <button onClick={() => useAppStore.getState().updateThemeConfig({ dockPosition: 'bottom' })} className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all ${!user.themeConfig?.dockPosition || user.themeConfig?.dockPosition === 'bottom' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>Unten</button>
+                          <button onClick={() => useAppStore.getState().updateThemeConfig({ dockPosition: 'right' })} className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all ${user.themeConfig?.dockPosition === 'right' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>Rechts</button>
+                        </div>
                       </div>
                     </div>
                   </div>

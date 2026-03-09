@@ -118,8 +118,23 @@ export default function TabbieLayout({ activeTab, setActiveTab, children, onOpen
             </motion.div>
 
             {/* Bottom Floating Dock */}
-            <div className="absolute bottom-6 z-20">
-                <div className="flex items-center gap-2 bg-[#1a1b1e]/80 backdrop-blur-2xl px-6 py-3 rounded-[32px] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            <motion.div
+                className={`absolute z-20 flex ${themeConfig.dockPosition === 'left' ? 'left-6 top-1/2 -translate-y-1/2' : themeConfig.dockPosition === 'right' ? 'right-6 top-1/2 -translate-y-1/2' : 'bottom-6 left-1/2 -translate-x-1/2'}`}
+                drag
+                dragMomentum={false}
+                onDragEnd={(_e, info) => {
+                    const { x } = info.point;
+                    const w = window.innerWidth;
+                    let newPos: 'bottom' | 'left' | 'right' = 'bottom';
+                    if (x < w * 0.25) newPos = 'left';
+                    else if (x > w * 0.75) newPos = 'right';
+
+                    if (newPos !== themeConfig.dockPosition) {
+                        useAppStore.getState().updateThemeConfig({ dockPosition: newPos });
+                    }
+                }}
+            >
+                <div className={`flex items-center gap-2 bg-[#1a1b1e]/80 backdrop-blur-2xl rounded-[32px] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] cursor-grab active:cursor-grabbing hover:border-white/20 transition-all ${themeConfig.dockPosition === 'left' || themeConfig.dockPosition === 'right' ? 'flex-col py-6 px-3' : 'flex-row px-6 py-3'}`}>
                     {renderDockItem('mission', LayoutIcon, 'Dashboard')}
                     {renderDockItem('tasks', Target, 'Aufgaben')}
                     {renderDockItem('workspaces', Layers, 'Workspaces')}
@@ -127,7 +142,7 @@ export default function TabbieLayout({ activeTab, setActiveTab, children, onOpen
                     {renderDockItem('habits', Flame, 'Gewohnheiten')}
                     {renderDockItem('screentime', Activity, 'Bildschirmzeit')}
                     {renderDockItem('mail', Mail, 'Postfach')}
-                    <div className="w-8 h-px bg-white/10 my-2" />
+                    <div className={`${themeConfig.dockPosition === 'left' || themeConfig.dockPosition === 'right' ? 'h-8 w-px' : 'w-8 h-px'} bg-white/10 my-2`} />
 
                     {/* User Profile in Dock */}
                     <button
@@ -145,7 +160,7 @@ export default function TabbieLayout({ activeTab, setActiveTab, children, onOpen
                         renderDockItem('admin', Shield, 'Admin')
                     )}
                 </div>
-            </div>
+            </motion.div>
 
             <ProfileSwitcher
                 isOpen={isProfileSwitcherOpen}

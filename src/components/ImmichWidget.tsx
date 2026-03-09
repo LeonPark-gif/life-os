@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Image as ImageIcon, Camera } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
 
 interface Photo {
     id: string;
@@ -9,13 +10,24 @@ interface Photo {
 }
 
 export default function ImmichWidget() {
+    const { users, activeUserId } = useAppStore();
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const activeUser = users.find(u => u.id === activeUserId);
+    const immichConfig = activeUser?.immichConfig;
 
     useEffect(() => {
         const fetchPhotos = async () => {
             try {
-                const res = await fetch('/api/photos/on-this-day');
+                const res = await fetch('/api/photos/on-this-day', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        imUrl: immichConfig?.url,
+                        imApiKey: immichConfig?.apiKey
+                    })
+                });
                 if (!res.ok) throw new Error('Failed to fetch photos');
                 const data = await res.json();
                 setPhotos(data.photos || []);
@@ -26,7 +38,7 @@ export default function ImmichWidget() {
             }
         };
         fetchPhotos();
-    }, []);
+    }, [activeUserId]);
 
     return (
         <div className="flex flex-col h-full overflow-hidden group">

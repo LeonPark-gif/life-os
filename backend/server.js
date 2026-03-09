@@ -178,20 +178,23 @@ const NEXTCLOUD_URL = process.env.NEXTCLOUD_URL || '';
 const NEXTCLOUD_USER = process.env.NEXTCLOUD_USER || '';
 const NEXTCLOUD_PASS = process.env.NEXTCLOUD_PASS || '';
 
-const getWebDAVClient = () => {
-    if (!NEXTCLOUD_URL || !NEXTCLOUD_USER || !NEXTCLOUD_PASS) return null;
-    return createClient(NEXTCLOUD_URL + '/remote.php/dav/files/' + NEXTCLOUD_USER, {
-        username: NEXTCLOUD_USER,
-        password: NEXTCLOUD_PASS
+const getWebDAVClient = (ncUrl, ncUser, ncPass) => {
+    const finalUrl = ncUrl || NEXTCLOUD_URL;
+    const finalUser = ncUser || NEXTCLOUD_USER;
+    const finalPass = ncPass || NEXTCLOUD_PASS;
+
+    if (!finalUrl || !finalUser || !finalPass) return null;
+    return createClient(finalUrl + '/remote.php/dav/files/' + finalUser, {
+        username: finalUser,
+        password: finalPass
     });
 };
 
 app.post('/api/nextcloud/list', async (req, res) => {
     try {
-        const client = getWebDAVClient();
+        const { path: dirPath = '/', ncUrl, ncUser, ncPass } = req.body;
+        const client = getWebDAVClient(ncUrl, ncUser, ncPass);
         if (!client) return res.json({ success: true, files: [] });
-
-        const { path: dirPath = '/' } = req.body;
         const directoryItems = await client.getDirectoryContents(dirPath);
 
         const files = directoryItems.map(item => ({
@@ -211,10 +214,9 @@ app.post('/api/nextcloud/list', async (req, res) => {
 
 app.post('/api/nextcloud/read', async (req, res) => {
     try {
-        const client = getWebDAVClient();
+        const { path: filePath, ncUrl, ncUser, ncPass } = req.body;
+        const client = getWebDAVClient(ncUrl, ncUser, ncPass);
         if (!client) throw new Error('Nextcloud not configured');
-
-        const { path: filePath } = req.body;
         const content = await client.getFileContents(filePath, { format: 'text' });
         res.json({ success: true, content });
     } catch (e) {
@@ -223,9 +225,13 @@ app.post('/api/nextcloud/read', async (req, res) => {
     }
 });
 
-app.get('/api/photos/on-this-day', async (req, res) => {
+app.post('/api/photos/on-this-day', async (req, res) => {
     try {
-        if (!IMMICH_API_KEY) {
+        const { imUrl, imApiKey } = req.body || {};
+        const finalKey = imApiKey || IMMICH_API_KEY;
+        const finalUrl = imUrl || IMMICH_URL;
+
+        if (!finalKey) {
             return res.json({ success: true, photos: [] });
         }
 
@@ -238,10 +244,10 @@ app.get('/api/photos/on-this-day', async (req, res) => {
         // For simplicity, we just use a dummy response or make a real search if API key exists.
 
         // Example Immich API call for searching:
-        const searchRes = await fetch(`${IMMICH_URL}/api/search/metadata`, {
+        const searchRes = await fetch(`${finalUrl}/api/search/metadata`, {
             method: 'POST',
             headers: {
-                'x-api-key': IMMICH_API_KEY,
+                'x-api-key': finalKey,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
@@ -262,7 +268,7 @@ app.get('/api/photos/on-this-day', async (req, res) => {
         // We return the thumbnail URLs so the frontend can render them directly
         const photos = assets.slice(0, 5).map(asset => ({
             id: asset.id,
-            url: `${IMMICH_URL}/api/assets/${asset.id}/thumbnail?size=preview&key=${IMMICH_API_KEY}`,
+            url: `${finalUrl}/api/assets/${asset.id}/thumbnail?size=preview&key=${finalKey}`,
             date: asset.fileCreatedAt
         }));
 

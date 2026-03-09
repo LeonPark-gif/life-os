@@ -178,7 +178,7 @@ export default function Chronosphere() {
         });
 
         // Background AI processing (Proactive Help)
-        if (isNew && user?.aiSettings?.enabled && user?.aiSettings?.proactiveHelp) {
+        if (isNew) {
             const lowerTitle = savedTitle.toLowerCase();
             const isEventIdea = lowerTitle.match(/geburtstag|hochzeit|feier|party|jubiläum|jahrestag|geschenk|besuch/i);
 

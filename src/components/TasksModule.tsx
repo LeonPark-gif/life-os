@@ -139,38 +139,36 @@ export default function TasksModule() {
         setNewTaskText('');
 
         // Background AI processing (Proactive Help)
-        if (currentUser?.aiSettings?.enabled && currentUser?.aiSettings?.proactiveHelp) {
-            const lowerTitle = taskText.toLowerCase();
-            const isTodoIdea = lowerTitle.match(/kaufen|besorgen|anrufen|termin|buchen|reservieren|planen|geburtstag|geschenk|abklären/i);
+        const lowerTitle = taskText.toLowerCase();
+        const isTodoIdea = lowerTitle.match(/kaufen|besorgen|anrufen|termin|buchen|reservieren|planen|geburtstag|geschenk|abklären/i);
 
-            if (isTodoIdea) {
-                try {
-                    const storeState = useAppStore.getState();
-                    // Let's get the ID of the task we just added by finding the last task in the list
-                    const list = storeState.lists.find(l => l.id === activeList.id);
-                    const newTask = list?.tasks[list.tasks.length - 1];
-                    const recentTodos = list?.tasks.slice(-5).map(t => t.text).join(', ') || '';
+        if (isTodoIdea) {
+            try {
+                const storeState = useAppStore.getState();
+                const list = storeState.lists.find(l => l.id === activeList.id);
+                const newTask = list?.tasks[list.tasks.length - 1];
+                const recentTodos = list?.tasks.slice(-5).map(t => t.text).join(', ') || '';
 
-                    let suggestion;
-                    if (currentUser?.aiSettings?.geminiApiKey) {
-                        const { ollamaService } = await import('../utils/ollamaService');
-                        suggestion = await ollamaService.analyzeEntryStructured(taskText, 'task', recentTodos);
-                    } else {
-                        const { haService } = await import('../utils/haService');
-                        suggestion = await haService.analyzeEntry(taskText, 'task', recentTodos, currentUser.aiSettings?.agentId);
-                    }
-
-                    if (suggestion && suggestion.action !== 'none') {
-                        storeState.setSparkSuggestion({
-                            ...suggestion,
-                            targetId: newTask?.id,
-                            listId: activeList.id
-                        });
-                        storeState.setShowSparkBubble(true);
-                    }
-                } catch (err) {
-                    console.error("Proactive help failed silently", err);
+                let suggestion;
+                const aiSettings = storeState.currentUser().aiSettings;
+                if (aiSettings?.geminiApiKey) {
+                    const { ollamaService } = await import('../utils/ollamaService');
+                    suggestion = await ollamaService.analyzeEntryStructured(taskText, 'task', recentTodos);
+                } else {
+                    const { haService } = await import('../utils/haService');
+                    suggestion = await haService.analyzeEntry(taskText, 'task', recentTodos, aiSettings?.agentId);
                 }
+
+                if (suggestion && suggestion.action !== 'none') {
+                    storeState.setSparkSuggestion({
+                        ...suggestion,
+                        targetId: newTask?.id,
+                        listId: activeList.id
+                    });
+                    storeState.setShowSparkBubble(true);
+                }
+            } catch (err) {
+                console.error("Proactive help failed silently", err);
             }
         }
     };

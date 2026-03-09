@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore, type StatusLedConditionType } from '../store/useAppStore';
+import { haService } from '../utils/haService';
 import { Zap, Plus, Trash2, Lightbulb, Activity, GripVertical, Trash, Upload, CheckCircle2, Clock, ChevronRight, CloudRain, LayoutDashboard } from 'lucide-react';
 import { parseICS, type TempCalendarEvent } from '../utils/icsParser';
 
@@ -12,6 +13,19 @@ export default function SmarthomeSettingsPanel() {
     const ledConfig = currentUser.statusLed || { entityId: '', rules: [], defaultColor: '#000000' };
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'devices' | 'led' | 'abfall'>('dashboard');
+
+    // --- Entity Fetching ---
+    const [haEntities, setHaEntities] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (activeTab === 'dashboard' || activeTab === 'devices' || activeTab === 'led') {
+            haService.getEntities().then(entities => {
+                if (Array.isArray(entities)) {
+                    setHaEntities(entities.map(e => ({ id: e.entity_id, name: e.attributes?.friendly_name || e.entity_id })));
+                }
+            });
+        }
+    }, [activeTab]);
 
     // --- Device Handlers ---
     const handleAddDevice = () => {
@@ -131,6 +145,10 @@ export default function SmarthomeSettingsPanel() {
 
     return (
         <div className="bg-black/80 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 text-white max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
+            <datalist id="ha-entities">
+                {haEntities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </datalist>
+
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10 shrink-0">
                 <div className="p-3 rounded-full bg-amber-500/20 text-amber-300">
                     <Zap size={24} />
@@ -189,6 +207,7 @@ export default function SmarthomeSettingsPanel() {
                                     value={currentUser.weatherEntityId || ''}
                                     onChange={(e) => updateWeatherEntityId(e.target.value)}
                                     placeholder="Standard: weather.home"
+                                    list="ha-entities"
                                     className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50"
                                 />
                                 <p className="text-[10px] text-gray-500 mt-2 pl-1">Gib hier die ID deiner Wetter-Integration ein (z.B. weather.dwd_aachen).</p>
@@ -251,6 +270,7 @@ export default function SmarthomeSettingsPanel() {
                                                     value={device.entityId}
                                                     onChange={(e) => updateSmarthomeDevice(device.id, { entityId: e.target.value })}
                                                     placeholder="z.B. light.wohnzimmer"
+                                                    list="ha-entities"
                                                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
                                                 />
                                             </div>
@@ -283,6 +303,7 @@ export default function SmarthomeSettingsPanel() {
                                         value={ledConfig.entityId}
                                         onChange={(e) => updateStatusLedConfig({ entityId: e.target.value })}
                                         placeholder="z.B. light.status_led"
+                                        list="ha-entities"
                                         className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"
                                     />
                                 </div>

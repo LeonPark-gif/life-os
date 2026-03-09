@@ -16,10 +16,12 @@ export default function AdminPanel() {
     const [newAvatar, setNewAvatar] = useState('🧑');
     const [newColor, setNewColor] = useState<string>('text-indigo-400');
     const [newPin, setNewPin] = useState('');
-    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'system' | 'mail' | 'calendar' | 'backup' | 'ai'>('profile');
-    const [selectedMailUserId, setSelectedMailUserId] = useState<string>('valentin');
+    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'system' | 'mail' | 'cloud' | 'calendar' | 'backup' | 'ai'>('profile');
+    const [selectedMailUserId, setSelectedMailUserId] = useState<string>('admin');
+    const [selectedCloudUserId, setSelectedCloudUserId] = useState<string>('admin');
     const displayUsers = users.filter(u => !u.isHidden);
     const selectedMailUser = users.find(u => u.id === selectedMailUserId) || activeUser;
+    const selectedCloudUser = users.find(u => u.id === selectedCloudUserId) || activeUser;
 
     // Backup state
     const [backups, setBackups] = useState<BackupInfo[]>([]);
@@ -161,6 +163,7 @@ export default function AdminPanel() {
                     { id: 'users', icon: <UserIcon size={14} />, label: 'Nutzer' },
                     { id: 'system', icon: <Server size={14} />, label: 'System' },
                     { id: 'mail', icon: <Mail size={14} />, label: 'Mail' },
+                    { id: 'cloud', icon: <Database size={14} />, label: 'Cloud' },
                     { id: 'calendar', icon: <CalendarIcon size={14} />, label: 'Kalender' },
                     { id: 'backup', icon: <Database size={14} />, label: 'Backup' },
                 ].map(tab => (
@@ -483,6 +486,83 @@ export default function AdminPanel() {
                                             onChange={(e) => updateMailConfig(selectedMailUserId, { smtpPassword: e.target.value })}
                                             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50" />
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'cloud' && (
+                    <div className="space-y-6">
+                        <div className="flex gap-2 p-1 bg-black/40 rounded-xl border border-white/10 uppercase tracking-widest text-[10px] font-bold">
+                            {displayUsers.map(u => (
+                                <button key={u.id} onClick={() => setSelectedCloudUserId(u.id)}
+                                    className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${selectedCloudUserId === u.id ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:text-white'}`}>
+                                    <span>{u.avatar}</span> {u.name}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Nextcloud Section */}
+                        <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                                <h4 className="flex items-center gap-2 text-sm font-bold text-sky-400">
+                                    <Database size={16} /> Nextcloud (Dateien)
+                                </h4>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={selectedCloudUser.nextcloudConfig?.enabled || false}
+                                        onChange={(e) => useAppStore.getState().updateNextcloudConfig(selectedCloudUserId, { enabled: e.target.checked })} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
+                                </label>
+                            </div>
+
+                            <div className={`grid grid-cols-2 gap-4 transition-opacity duration-300 ${selectedCloudUser.nextcloudConfig?.enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">Server URL</label>
+                                    <input type="text" value={selectedCloudUser.nextcloudConfig?.url || ''} placeholder="https://nextcloud.example.com"
+                                        onChange={(e) => useAppStore.getState().updateNextcloudConfig(selectedCloudUserId, { url: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">Benutzername</label>
+                                    <input type="text" value={selectedCloudUser.nextcloudConfig?.username || ''}
+                                        onChange={(e) => useAppStore.getState().updateNextcloudConfig(selectedCloudUserId, { username: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">App-Passwort</label>
+                                    <input type="password" value={selectedCloudUser.nextcloudConfig?.password || ''}
+                                        onChange={(e) => useAppStore.getState().updateNextcloudConfig(selectedCloudUserId, { password: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Immich Section */}
+                        <div className="p-4 bg-white/5 border border-white/10 rounded-xl">
+                            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                                <h4 className="flex items-center gap-2 text-sm font-bold text-rose-400">
+                                    <Server size={16} /> Immich (Fotos)
+                                </h4>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={selectedCloudUser.immichConfig?.enabled || false}
+                                        onChange={(e) => useAppStore.getState().updateImmichConfig(selectedCloudUserId, { enabled: e.target.checked })} className="sr-only peer" />
+                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                                </label>
+                            </div>
+
+                            <div className={`grid grid-cols-2 gap-4 transition-opacity duration-300 ${selectedCloudUser.immichConfig?.enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">Server URL</label>
+                                    <input type="text" value={selectedCloudUser.immichConfig?.url || ''} placeholder="https://immich.example.com"
+                                        onChange={(e) => useAppStore.getState().updateImmichConfig(selectedCloudUserId, { url: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500/50" />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">API Key</label>
+                                    <input type="password" value={selectedCloudUser.immichConfig?.apiKey || ''}
+                                        onChange={(e) => useAppStore.getState().updateImmichConfig(selectedCloudUserId, { apiKey: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500/50" />
                                 </div>
                             </div>
                         </div>

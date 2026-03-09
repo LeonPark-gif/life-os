@@ -22,6 +22,8 @@ export interface User {
     statusLed?: StatusLedConfig;
     weatherEntityId?: string; // Optional custom weather entity
     mailConfig?: MailConfig;
+    nextcloudConfig?: NextcloudConfig; // New: Per-user Nextcloud
+    immichConfig?: ImmichConfig;       // New: Per-user Immich
     calDavAccounts?: CalDavConfig[]; // New: Multiple CalDAV accounts
     showSchoolHolidays?: boolean; // New: School holidays toggle
     pin?: string;             // 4-digit PIN for profile protection
@@ -39,7 +41,7 @@ export interface User {
         wallpaper?: string;
         accentColor?: string;
         glassOpacity?: number;
-        dockPosition?: { x: number; y: number };
+        dockPosition?: 'bottom' | 'left' | 'right';
     };
 }
 
@@ -126,6 +128,19 @@ export interface CalDavConfig {
     password?: string;
     color?: string;
     ownerId?: string; // Which user does this belong to?
+}
+
+export interface NextcloudConfig {
+    enabled: boolean;
+    url?: string;
+    username?: string;
+    password?: string;
+}
+
+export interface ImmichConfig {
+    enabled: boolean;
+    url?: string;
+    apiKey?: string;
 }
 
 export interface Task {
@@ -249,6 +264,10 @@ interface UserSlice {
 
     // Mail Actions
     updateMailConfig: (userId: string, config: Partial<MailConfig>) => void;
+
+    // Cloud Actions
+    updateNextcloudConfig: (userId: string, config: Partial<NextcloudConfig>) => void;
+    updateImmichConfig: (userId: string, config: Partial<ImmichConfig>) => void;
 
     // Smarthome Actions
     addSmarthomeDevice: (device: Omit<SmarthomeDevice, 'id'>) => void;
@@ -536,6 +555,20 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
             }
             return u;
         })
+    })),
+
+    updateNextcloudConfig: (userId, config) => set((state) => ({
+        users: state.users.map(u => u.id === userId ? {
+            ...u,
+            nextcloudConfig: { ...u.nextcloudConfig, ...config } as NextcloudConfig
+        } : u)
+    })),
+
+    updateImmichConfig: (userId, config) => set((state) => ({
+        users: state.users.map(u => u.id === userId ? {
+            ...u,
+            immichConfig: { ...u.immichConfig, ...config } as ImmichConfig
+        } : u)
     })),
 
     addSmarthomeDevice: (device) => set((state) => ({

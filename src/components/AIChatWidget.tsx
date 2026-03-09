@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, X, MessageSquare, Mic, Loader2, Bot, User, Trash2 } from 'lucide-react';
 import { ollamaService } from '../utils/ollamaService';
 import { nextcloudService, type NextcloudFile } from '../utils/nextcloudService';
+import { haService } from '../utils/haService';
 import { useAppStore, type ChatMessage } from '../store/useAppStore';
 import { Folder, File, Paperclip } from 'lucide-react';
 
@@ -68,30 +69,53 @@ export default function AIChatWidget() {
 
         try {
             let replyText = "Befehl ausgeführt.";
+            let isHACommand = false;
 
-            // Actually, we learned earlier that HA intent parser breaks with wrapped text.
-            // So for chat, we ALWAYS send the raw text exactly as the user typed it.
+            // 1. First Pass: Is it a HA command?
+            const haKeywords = ['licht', 'lampe', 'schalte', 'mach', 'heizung', 'rollo', 'steckdose', 'thermostat', 'temperatur', 'luftfeuchtigkeit', 'öffne', 'schließe'];
+            const lowerInput = userMsg.text.toLowerCase();
+            isHACommand = haKeywords.some(kw => lowerInput.includes(kw));
 
-            let fileContent = null;
+            // If a file is attached, ALWAYS use the general AI to analyze it
             if (attachedFile) {
-                fileContent = await nextcloudService.getFileContent(attachedFile.path);
+                isHACommand = false;
             }
 
-            // Call our backend proxy instead of HA directly to enable file context injection
-            const res = await fetch('/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: messages.map(m => ({ role: m.role, content: m.text })).concat([{ role: 'user', content: userMsg.text }]),
-                    fileContext: fileContent,
-                    fileName: attachedFile?.name,
-                    stream: false
-                })
-            });
+            if (isHACommand) {
+                // Route directly to Home Assistant's native intent parser
+                const haRes = await haService.processConversation(userMsg.text);
+                const haSpeech = haRes?.response?.speech?.plain?.speech || haRes?.speech?.plain?.speech;
 
-            if (!res.ok) throw new Error('Backend error');
-            const data = await res.json();
-            replyText = data.choices[0]?.message?.content || "Befehl ausgeführt.";
+                if (haSpeech && !haSpeech.toLowerCase().includes('entschuldigung, ich habe das nicht verstanden')) {
+                    replyText = haSpeech;
+                } else {
+                    isHACommand = false; // Fallback to Ollama if HA failed to understand
+                }
+            }
+
+            // 2. Second Pass: Route to General LLM Backend (Ollama)
+            if (!isHACommand) {
+                let fileContent = null;
+                if (attachedFile) {
+                    fileContent = await nextcloudService.getFileContent(attachedFile.path);
+                }
+
+                // Call our backend proxy instead of HA directly to enable file context injection
+                const res = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: messages.map(m => ({ role: m.role, content: m.text })).concat([{ role: 'user', content: userMsg.text }]),
+                        fileContext: fileContent,
+                        fileName: attachedFile?.name,
+                        stream: false
+                    })
+                });
+
+                if (!res.ok) throw new Error('Backend error');
+                const data = await res.json();
+                replyText = data.choices[0]?.message?.content || "Befehl ausgeführt.";
+            }
 
             // Clear attachment after sending
             setAttachedFile(null);

@@ -104,33 +104,28 @@ export default function ChaosList() {
         setNewTaskText('');
         setNewTaskDueDate('');
 
-        // Proactive Help Trigger (Keyword Pre-filtering & Context Reduction)
-        if (userObj.aiSettings?.enabled && userObj.aiSettings?.proactiveHelp) {
-            const lowerText = addedTaskText.toLowerCase();
-            const isGrocery = lowerText.match(/einkauf|rewe|lidl|aldi|edeka|netto|kaufland|dm|rossmann/);
-            const isSmartHome = lowerText.match(/licht|lampe|schalte|mach|heizung|rollo/);
+        // Subtasks completed. Check for context processing.
+        const userObj = useAppStore.getState().currentUser();
+        const lowerText = addedTaskText.toLowerCase();
+        const isGrocery = lowerText.match(/kauf|supermarkt|rewe|lidl|aldi|edeka|netto/);
+        const isSmartHome = lowerText.match(/licht|lampe|schalte|mach|heizung|rollo/);
 
-            if (isGrocery || isSmartHome) {
+        if (isGrocery || isSmartHome) {
+            try {
                 const storeState = useAppStore.getState();
-                let recentContext = '';
 
-                if (isGrocery) {
-                    // Reduce context to ONLY past grocery items to save tokens
-                    const groceryTasks = storeState.lists.flatMap(l => l.tasks).filter(t => t.text.match(/einkauf|rewe|lidl|aldi|edeka|kaufland|netto|dm|rossmann/i));
-                    const pastItems = groceryTasks.flatMap(t => t.subtasks?.map(s => s.text) || []);
-                    recentContext = [...new Set(pastItems)].slice(0, 20).join(', ');
-                } else {
-                    // Minimal context for smart home
-                    recentContext = 'SmartHome Command';
-                }
+                // Get fresh context (what else is on the list?)
+                const recentContext = isGrocery ?
+                    'Shopping List context' : 'SmartHome Command';
 
                 let suggestion;
-                // Use Gemini directly for Structured Outputs if key is present
-                if (userObj?.aiSettings?.geminiApiKey) {
+                const aiSettings = storeState.currentUser().aiSettings;
+                if (aiSettings?.geminiApiKey) {
+                    const { ollamaService } = await import('../utils/ollamaService');
                     suggestion = await ollamaService.analyzeEntryStructured(addedTaskText, 'task', recentContext);
                 } else {
-                    // Fallback to HA Conversation API
-                    suggestion = await haService.analyzeEntry(addedTaskText, 'task', recentContext, userObj?.aiSettings?.agentId);
+                    const { haService } = await import('../utils/haService');
+                    suggestion = await haService.analyzeEntry(addedTaskText, 'task', recentContext, aiSettings?.agentId);
                 }
 
                 if (suggestion && suggestion.action !== 'none') {
@@ -145,6 +140,8 @@ export default function ChaosList() {
                     });
                     storeState.setShowSparkBubble(true);
                 }
+            } catch (e) {
+                console.error("Context evaluation failed", e);
             }
         }
     };
@@ -154,6 +151,7 @@ export default function ChaosList() {
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        const userObj = useAppStore.getState().currentUser();
         if (!file || !userObj?.aiSettings?.geminiApiKey || !activeList) return;
 
         setIsUploadingImage(true);

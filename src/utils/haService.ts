@@ -202,6 +202,25 @@ export class HAService {
         }
     }
 
+    // New: Get all entities
+    async getEntities() {
+        if (!this.token) return [];
+        try {
+            console.log(`[HAService] Fetching all entities`);
+            const res = await fetch(`${this.url}/api/states`, {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!res.ok) throw new Error(res.statusText);
+            return await res.json();
+        } catch (error) {
+            console.error(`[HAService] Failed to fetch entities:`, error);
+            return [];
+        }
+    }
+
     // New: Call a service (turn_on, turn_off, etc.)
     async callService(domain: string, service: string, serviceData: any = {}) {
         if (!this.token) return;
