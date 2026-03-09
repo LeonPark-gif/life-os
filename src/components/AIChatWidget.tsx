@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, X, MessageSquare, Mic, Loader2, Bot, User, Trash2 } from 'lucide-react';
-import { haService } from '../utils/haService';
 import { ollamaService } from '../utils/ollamaService';
+import { nextcloudService, type NextcloudFile } from '../utils/nextcloudService';
 import { useAppStore, type ChatMessage } from '../store/useAppStore';
+import { Folder, File, Paperclip } from 'lucide-react';
 
 export default function AIChatWidget() {
     const currentUser = useAppStore(state => state.currentUser);
@@ -16,6 +17,10 @@ export default function AIChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showFileBrowser, setShowFileBrowser] = useState(false);
+    const [files, setFiles] = useState<NextcloudFile[]>([]);
+    const [currentPath, setCurrentPath] = useState('/');
+    const [attachedFile, setAttachedFile] = useState<NextcloudFile | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Audio recording state
@@ -30,6 +35,17 @@ export default function AIChatWidget() {
     useEffect(() => {
         if (isOpen) scrollToBottom();
     }, [messages, isOpen]);
+
+    useEffect(() => {
+        if (showFileBrowser) {
+            loadFiles(currentPath);
+        }
+    }, [showFileBrowser, currentPath]);
+
+    const loadFiles = async (path: string) => {
+        const list = await nextcloudService.listFiles(path);
+        setFiles(list);
+    };
 
     if (!aiSettings?.enabled || !aiSettings?.chatEnabled) return null;
 
@@ -53,17 +69,32 @@ export default function AIChatWidget() {
         try {
             let replyText = "Befehl ausgeführt.";
 
-            // ALWAYS route manual chat through Home Assistant.
-            // Why? Because Gemini alone cannot control local Smart Home devices.
-            // The Home Assistant Intent Engine needs to process it.
-
-            // We ONLY inject context if context-awareness is on AND we know
-            // we are talking to a smart agent (we'll assume the user put the right agent ID in HA)
             // Actually, we learned earlier that HA intent parser breaks with wrapped text.
             // So for chat, we ALWAYS send the raw text exactly as the user typed it.
 
-            const response = await haService.processConversation(userMsg.text, aiSettings?.agentId);
-            replyText = response?.response?.speech?.plain?.speech || response?.speech?.plain?.speech || response?.speech?.speech || "Befehl ausgeführt.";
+            let fileContent = null;
+            if (attachedFile) {
+                fileContent = await nextcloudService.getFileContent(attachedFile.path);
+            }
+
+            // Call our backend proxy instead of HA directly to enable file context injection
+            const res = await fetch('/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: messages.map(m => ({ role: m.role, content: m.text })).concat([{ role: 'user', content: userMsg.text }]),
+                    fileContext: fileContent,
+                    fileName: attachedFile?.name,
+                    stream: false
+                })
+            });
+
+            if (!res.ok) throw new Error('Backend error');
+            const data = await res.json();
+            replyText = data.choices[0]?.message?.content || "Befehl ausgeführt.";
+
+            // Clear attachment after sending
+            setAttachedFile(null);
 
             const aiMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
@@ -208,6 +239,65 @@ export default function AIChatWidget() {
                             <div ref={messagesEndRef} />
                         </div>
 
+                        {/* File Browser Overlay */}
+                        <AnimatePresence>
+                            {showFileBrowser && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 100 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 100 }}
+                                    className="absolute inset-0 bg-black/90 z-20 flex flex-col p-4"
+                                >
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-white font-bold text-sm">Nextcloud Browser</h3>
+                                        <button onClick={() => setShowFileBrowser(false)} className="text-gray-400 hover:text-white">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto space-y-2 scrollbar-none">
+                                        {currentPath !== '/' && (
+                                            <button
+                                                onClick={() => setCurrentPath(currentPath.split('/').slice(0, -2).join('/') + '/')}
+                                                className="w-full text-left p-2 hover:bg-white/10 rounded flex items-center gap-2 text-indigo-300 text-sm"
+                                            >
+                                                <Folder size={14} /> ..
+                                            </button>
+                                        )}
+                                        {files.map(file => (
+                                            <button
+                                                key={file.path}
+                                                onClick={() => {
+                                                    if (file.type === 'directory') {
+                                                        setCurrentPath(file.path + '/');
+                                                    } else {
+                                                        setAttachedFile(file);
+                                                        setShowFileBrowser(false);
+                                                    }
+                                                }}
+                                                className="w-full text-left p-2 hover:bg-white/10 rounded flex items-center gap-2 text-gray-300 text-sm overflow-hidden"
+                                            >
+                                                {file.type === 'directory' ? <Folder size={14} className="text-indigo-400" /> : <File size={14} className="text-gray-400" />}
+                                                <span className="truncate">{file.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Attached File Preview */}
+                        {attachedFile && (
+                            <div className="px-4 py-2 bg-indigo-500/10 border-t border-white/10 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs text-indigo-300">
+                                    <Paperclip size={12} />
+                                    <span className="truncate max-w-[200px]">{attachedFile.name}</span>
+                                </div>
+                                <button onClick={() => setAttachedFile(null)} className="text-gray-500 hover:text-rose-400">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
+
                         {/* Input */}
                         <div className="p-3 border-t border-white/10 bg-white/5">
                             <div className="flex items-center gap-2 bg-black/40 rounded-full px-4 py-2 border border-white/10 focus-within:border-indigo-500/50 transition-colors">
@@ -216,10 +306,17 @@ export default function AIChatWidget() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Schreibe dem DaSilva..."
+                                    placeholder={attachedFile ? "Frage zur Datei..." : "Schreibe dem DaSilva..."}
                                     className="bg-transparent border-none outline-none text-white text-sm w-full placeholder-gray-500"
                                     disabled={isProcessing}
                                 />
+                                <button
+                                    onClick={() => setShowFileBrowser(true)}
+                                    className="text-gray-500 hover:text-white transition-colors"
+                                    title="Datei aus Nextcloud anhängen"
+                                >
+                                    <Paperclip size={16} />
+                                </button>
                                 <button
                                     onClick={handleAudioRecord}
                                     className={`transition-colors p-2 rounded-full ${isRecording ? 'text-rose-500 bg-rose-500/20 animate-pulse' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}

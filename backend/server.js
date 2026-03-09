@@ -11,6 +11,7 @@ import { createDAVClient } from 'tsdav';
 import { v4 as uuidv4 } from 'uuid';
 import ical from 'node-ical';
 import mqtt from 'mqtt';
+import { createClient } from 'webdav';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -170,6 +171,58 @@ Hier sind die Daten für heute:
 const IMMICH_URL = process.env.IMMICH_URL || 'http://localhost:2283';
 const IMMICH_API_KEY = process.env.IMMICH_API_KEY || '';
 
+// ─────────────────────────────────────────────
+// NEXTCLOUD WEBDAV BRIDGE
+// ─────────────────────────────────────────────
+const NEXTCLOUD_URL = process.env.NEXTCLOUD_URL || '';
+const NEXTCLOUD_USER = process.env.NEXTCLOUD_USER || '';
+const NEXTCLOUD_PASS = process.env.NEXTCLOUD_PASS || '';
+
+const getWebDAVClient = () => {
+    if (!NEXTCLOUD_URL || !NEXTCLOUD_USER || !NEXTCLOUD_PASS) return null;
+    return createClient(NEXTCLOUD_URL + '/remote.php/dav/files/' + NEXTCLOUD_USER, {
+        username: NEXTCLOUD_USER,
+        password: NEXTCLOUD_PASS
+    });
+};
+
+app.post('/api/nextcloud/list', async (req, res) => {
+    try {
+        const client = getWebDAVClient();
+        if (!client) return res.json({ success: true, files: [] });
+
+        const { path: dirPath = '/' } = req.body;
+        const directoryItems = await client.getDirectoryContents(dirPath);
+        
+        const files = directoryItems.map(item => ({
+            name: item.basename,
+            path: item.filename,
+            type: item.type,
+            size: item.size,
+            lastmod: item.lastmod
+        }));
+
+        res.json({ success: true, files });
+    } catch (e) {
+        console.error('[Nextcloud] List error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/nextcloud/read', async (req, res) => {
+    try {
+        const client = getWebDAVClient();
+        if (!client) throw new Error('Nextcloud not configured');
+
+        const { path: filePath } = req.body;
+        const content = await client.getFileContents(filePath, { format: 'text' });
+        res.json({ success: true, content });
+    } catch (e) {
+        console.error('[Nextcloud] Read error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/photos/on-this-day', async (req, res) => {
     try {
         if (!IMMICH_API_KEY) {
@@ -249,6 +302,11 @@ app.post('/v1/chat/completions', async (req, res) => {
                 if (habits.length > 0) {
                     contextText += "Gewohnheiten:\n" + habits.map((h) => `- ${h.name}`).join("\n") + "\n";
                 }
+            }
+
+            // 1b. Inject File Context if requested
+            if (body.fileContext) {
+                contextText += `\nINHALT DER ANGEHÄNGTEN DATEI (${body.fileName}):\n${body.fileContext}\n`;
             }
         } catch (err) {
             console.error("[Voice] Error loading state for context:", err.message);
