@@ -176,7 +176,7 @@ services:
     depends_on:
       - firefly-app
     ports:
-      - "8081:8080"
+      - "8082:8080"
     environment:
       - FIREFLY_III_URL=http://firefly-app:8080
       - VANITY_URL=${FIREFLY_URL:-http://localhost:8080}
@@ -212,6 +212,23 @@ services:
     networks:
       - internal-network
 
+  # ─────────────────────────────────────────────
+  # 6. MQTT: Mosquitto Broker (Optional but recommended)
+  # ─────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    # Note: For testing, it runs without auth by default if no config is provided
+    networks:
+      - internal-network
+
 volumes:
   life-os-config:
   life-os-logs:
@@ -223,6 +240,8 @@ volumes:
   firefly-upload:
   whisper-data:
   piper-data:
+  mosquitto-data:
+  mosquitto-log:
 
 
 networks:
