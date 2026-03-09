@@ -59,6 +59,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 EXPOSE 8099
 
+# Ensure volume mount points exist and are owned by the node user
+RUN mkdir -p /config /app/logs && chown node:node /config /app/logs
+
 # Run as non-root user
 USER node
 
