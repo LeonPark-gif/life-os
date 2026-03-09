@@ -26,6 +26,11 @@ const themeColors: Record<ThemeColor, string> = {
     green: 'from-green-900/20 to-emerald-900/20 border-green-500/30 text-green-100',
     purple: 'from-purple-900/20 to-fuchsia-900/20 border-purple-500/30 text-purple-100',
     orange: 'from-orange-900/20 to-red-900/20 border-orange-500/30 text-orange-100',
+    gray: 'from-gray-900/20 to-slate-900/20 border-gray-500/30 text-gray-100',
+    black: 'from-black/40 to-black/60 border-gray-800/50 text-gray-300',
+    white: 'from-white/10 to-white/5 border-white/20 text-white',
+    stone: 'from-stone-900/20 to-zinc-900/20 border-stone-500/30 text-stone-100',
+    slate: 'from-slate-900/20 to-gray-900/20 border-slate-500/30 text-slate-100',
 };
 
 export default function ChaosList() {
