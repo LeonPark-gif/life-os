@@ -153,7 +153,7 @@ services:
     depends_on:
       - firefly-db
     ports:
-      - "8085:8080"
+      - "9091:8080"
     volumes:
       - firefly-upload:/var/www/html/storage/upload
     environment:
