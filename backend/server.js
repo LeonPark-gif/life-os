@@ -751,10 +751,24 @@ const DIST_DIR = fs.existsSync(path.join(__dirname, '../dist'))
     : path.join(__dirname, 'dist');
 
 if (fs.existsSync(DIST_DIR)) {
-    app.use(express.static(DIST_DIR));
-    // SPA fallback: all non-API routes serve index.html
+    // Disable automatic serving of index.html so we can intercept it
+    app.use(express.static(DIST_DIR, { index: false }));
+
+    // SPA fallback: all non-API routes serve index.html with injected ENV
     app.get('*', (req, res) => {
-        res.sendFile(path.join(DIST_DIR, 'index.html'));
+        const indexPath = path.join(DIST_DIR, 'index.html');
+        fs.readFile(indexPath, 'utf8', (err, html) => {
+            if (err) return res.sendFile(indexPath); // Fallback
+
+            const envScript = `<script>
+                window.ENV = {
+                    VITE_HA_URL: ${JSON.stringify(process.env.VITE_HA_URL || '')},
+                    VITE_HA_TOKEN: ${JSON.stringify(process.env.VITE_HA_TOKEN || '')}
+                };
+            </script>`;
+            const modifiedHtml = html.replace('</head>', `${envScript}</head>`);
+            res.send(modifiedHtml);
+        });
     });
     console.log('[Dashboard] Serving React app from dist/');
 } else {

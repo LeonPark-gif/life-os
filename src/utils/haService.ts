@@ -4,17 +4,16 @@ export class HAService {
     private entityId = 'sensor.life_os_data';
 
     constructor() {
-        // In DEV, use proxy (empty string). In PROD, use proper URL.
-        // If VITE_HA_URL is empty/missing, we use an empty string which results in relative paths.
-        // This is ideal when the app is hosted directly on Home Assistant (Step 5 of guide).
-        this.url = import.meta.env.DEV ? '' : (import.meta.env.VITE_HA_URL || '');
+        // Use injected window.ENV if available (from Docker server.js), fallback to import.meta.env
+        const envUrl = (window as any).ENV?.VITE_HA_URL || import.meta.env.VITE_HA_URL || '';
+        this.url = import.meta.env.DEV ? '' : envUrl;
 
         // Remove trailing slash if present to prevent double slashes in fetch
         if (this.url.endsWith('/')) {
             this.url = this.url.slice(0, -1);
         }
 
-        this.token = import.meta.env.VITE_HA_TOKEN || '';
+        this.token = (window as any).ENV?.VITE_HA_TOKEN || import.meta.env.VITE_HA_TOKEN || '';
 
         if (!this.token) {
             console.warn('[HAService] No VITE_HA_TOKEN found. Smarthome features and persistence will not work.');
