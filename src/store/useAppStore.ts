@@ -372,11 +372,9 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
-        { id: 'valentin', name: 'Valentin', avatar: '🍆', color: 'text-indigo-400', colorLabels: { 'rose': 'Urlaub', 'amber': 'Arbeit' }, aiSettings: { enabled: true, proactiveHelp: true, chatEnabled: true, contextAwareness: true, provider: 'local' } },
-        { id: 'leon', name: 'Leon', avatar: '🍑', color: 'text-cyan-400', colorLabels: {}, aiSettings: { enabled: false, proactiveHelp: false, chatEnabled: false, contextAwareness: false, provider: 'local' } },
         { id: 'admin', name: 'Administrator', avatar: '🛡️', color: 'text-rose-500', isHidden: false, pin: '0000' }
     ],
-    activeUserId: 'valentin', // Default
+    activeUserId: 'admin', // Default
     isHydrated: false,
 
     sparkSuggestion: null,
@@ -947,10 +945,7 @@ export const createCalendarSlice: StateCreator<StoreState, [], [], CalendarSlice
     console.log("Initializing Calendar Slice...");
     return {
         events: [],
-        people: [
-            { id: 'p1', name: 'Valentin', color: 'indigo' },
-            { id: 'p2', name: 'Leon', color: 'cyan' }
-        ],
+        people: [],
 
         addEvent: (event) => set((state) => ({
             events: [...state.events, {
@@ -1232,12 +1227,7 @@ Schreibe EINE kurze, knackige und motivierende Nachricht (max 2 Sätze), die den
 });
 
 export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSlice> = (set) => ({
-    workspaceItems: [
-        { id: 'ws1', name: 'Home Assistant', icon: 'home', color: 'blue', type: 'url', value: 'http://homeassistant.local:8123' },
-        { id: 'ws2', name: 'Musik', icon: 'music', color: 'purple', type: 'url', value: 'https://open.spotify.com' },
-        { id: 'ws3', name: 'Kino Modus', icon: 'film', color: 'rose', type: 'ha_entity', value: 'scene.kino_modus' },
-        { id: 'ws4', name: 'Alles Aus', icon: 'power', color: 'rose', type: 'ha_entity', value: 'script.alles_aus' }
-    ],
+    workspaceItems: [],
     addWorkspaceItem: (item) => set((state) => ({
         workspaceItems: [...state.workspaceItems, { ...item, id: generateId() }]
     })),

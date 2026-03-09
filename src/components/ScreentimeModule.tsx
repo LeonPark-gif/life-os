@@ -3,11 +3,7 @@ import { Smartphone, Monitor, Laptop, Clock, AlertTriangle, Play, Pause, Refresh
 import { motion } from 'framer-motion';
 
 // Mock data to simulate screen time until we have a real backend integration
-const MOCK_DEVICES = [
-    { id: '1', name: 'Galaxy Tab S9', type: 'tablet', usedToday: 120, limit: 180, active: true },
-    { id: '2', name: 'Gaming PC', type: 'desktop', usedToday: 210, limit: 120, active: false },
-    { id: '3', name: 'iPhone 15', type: 'mobile', usedToday: 45, limit: 120, active: false },
-];
+const MOCK_DEVICES: any[] = [];
 
 export default function ScreentimeModule() {
     const [devices, setDevices] = useState(MOCK_DEVICES);
