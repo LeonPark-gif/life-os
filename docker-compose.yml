@@ -211,23 +211,22 @@ services:
       - "10200:10200"
     networks:
       - internal-network
-
   # ─────────────────────────────────────────────
   # 6. MQTT: Mosquitto Broker (Optional but recommended)
   # ─────────────────────────────────────────────
-  mosquitto:
-    image: eclipse-mosquitto:2
-    container_name: mosquitto
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - mosquitto-data:/mosquitto/data
-      - mosquitto-log:/mosquitto/log
-    # Note: For testing, it runs without auth by default if no config is provided
-    networks:
-      - internal-network
+  # mosquitto:
+  #   image: eclipse-mosquitto:2
+  #   container_name: mosquitto
+  #   restart: unless-stopped
+  #   ports:
+  #     - "1883:1883"
+  #     - "9001:9001"
+  #   volumes:
+  #     - mosquitto-data:/mosquitto/data
+  #     - mosquitto-log:/mosquitto/log
+  #   # Note: For testing, it runs without auth by default if no config is provided
+  #   networks:
+  #     - internal-network
 
 volumes:
   life-os-config:
@@ -240,8 +239,8 @@ volumes:
   firefly-upload:
   whisper-data:
   piper-data:
-  mosquitto-data:
-  mosquitto-log:
+    # mosquitto-data:
+    # mosquitto-log:
 
 
 networks:
