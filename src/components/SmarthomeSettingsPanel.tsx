@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore, type StatusLedConditionType } from '../store/useAppStore';
 import { haService } from '../utils/haService';
-import { Zap, Plus, Trash2, Lightbulb, Activity, GripVertical, Trash, Upload, CheckCircle2, Clock, ChevronRight, CloudRain, LayoutDashboard } from 'lucide-react';
+import { Zap, Plus, Trash2, Lightbulb, Activity, GripVertical, Trash, Upload, CheckCircle2, Clock, ChevronRight, CloudRain, LayoutDashboard, Mic } from 'lucide-react';
 import { parseICS, type TempCalendarEvent } from '../utils/icsParser';
 
 export default function SmarthomeSettingsPanel() {
@@ -12,7 +12,7 @@ export default function SmarthomeSettingsPanel() {
     const devices = currentUser.smarthomeDevices || [];
     const ledConfig = currentUser.statusLed || { entityId: '', rules: [], defaultColor: '#000000' };
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'devices' | 'led' | 'abfall'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'devices' | 'led' | 'abfall' | 'voice'>('dashboard');
 
     // --- Entity Fetching ---
     const [haEntities, setHaEntities] = useState<any[]>([]);
@@ -189,6 +189,13 @@ export default function SmarthomeSettingsPanel() {
                     <Trash size={16} />
                     Abfallkalender
                 </button>
+                <button
+                    onClick={() => setActiveTab('voice')}
+                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'voice' ? 'bg-white/10 text-white shadow' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Mic size={16} />
+                    Smart Speaker
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto no-scrollbar pr-2">
@@ -287,6 +294,39 @@ export default function SmarthomeSettingsPanel() {
                                     )}
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Entity Picker */}
+                        <div className="mt-8 border-t border-white/10 pt-6">
+                            <h4 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                                <Zap size={16} className="text-amber-400" /> Gefundene Home Assistant Geräte
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                {haEntities.filter(e => !devices.find(d => d.entityId === e.id) && e.id.match(/^(light|switch|sensor|cover|climate|media_player)\./)).map(e => (
+                                    <div key={e.id} className="p-2 bg-white/5 border border-white/10 rounded-lg flex justify-between items-center group hover:bg-white/10 transition-colors">
+                                        <div className="flex flex-col overflow-hidden">
+                                            <span className="text-sm font-bold text-white truncate">{e.name}</span>
+                                            <span className="text-[10px] text-gray-500 font-mono truncate">{e.id}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const typeMap: Record<string, string> = {
+                                                    light: 'light', switch: 'switch', sensor: 'sensor', cover: 'cover', climate: 'climate', media_player: 'media_player'
+                                                };
+                                                const domain = e.id.split('.')[0];
+                                                addSmarthomeDevice({ name: e.name, entityId: e.id, type: (typeMap[domain] || 'switch') as any });
+                                            }}
+                                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-md opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                                            title="Hinzufügen"
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {haEntities.filter(e => !devices.find(d => d.entityId === e.id) && e.id.match(/^(light|switch|sensor|cover|climate|media_player)\./)).length === 0 && (
+                                    <p className="text-xs text-gray-500 col-span-2">Alle unterstützten Geräte wurden bereits hinzugefügt oder es wurden keine gefunden.</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -552,6 +592,37 @@ export default function SmarthomeSettingsPanel() {
                                     {importSuccess}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'voice' && (
+                    <div className="space-y-6">
+                        <div className="p-5 bg-white/5 border border-white/10 rounded-xl">
+                            <h4 className="text-white text-base font-bold mb-2 flex items-center gap-2">
+                                <Mic className="text-purple-500" size={20} /> Smart Speaker (ESP32-S3-BOX)
+                            </h4>
+                            <p className="text-sm text-gray-400 mb-6">
+                                Dein Server stellt bereits die Dienste <strong>Wyoming Whisper</strong> (Sprache-zu-Text) und <strong>Piper</strong> (Text-zu-Sprache) bereit. So verbindest du physische ESP32 Lautsprecher:
+                            </p>
+
+                            <ol className="list-decimal list-inside space-y-4 text-sm text-gray-300">
+                                <li>
+                                    <strong className="text-white">Gerät flashen:</strong> Verbinde die ESP32-S3-BOX via USB mit dem PC und gehe auf <a href="https://nabucasa.github.io/esp-web-tools/" target="_blank" className="text-purple-400 hover:underline">ESP Web Tools</a>, um die Home Assistant Voice Assistant Firmware zu installieren und das WLAN einzurichten.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Als Integration hinzufügen:</strong> Die Box sollte nach dem Neustart automatisch in Home Assistant unter "Einstellungen &gt; Geräte" als neues "Wyoming" Gerät auftauchen.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Assist Pipeline konfigurieren:</strong> Gehe in HA zu "Einstellungen &gt; Sprachassistenten" und erstelle eine Pipeline. Wähle als STT (Sprache-zu-Text) den lokalen <code>whisper</code> (Port 10300) und als TTS den <code>piper</code> (Port 10200) aus.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Konversations-Agent:</strong> Stelle sicher, dass die Ollama-Integration oder Home Assistant als Konversations-Agent in der Pipeline hinterlegt ist.
+                                </li>
+                            </ol>
+                            <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-xs text-indigo-300">
+                                <strong>Info:</strong> Die physische Box hört nun auf das Wake-Word (z.B. "Okay Nabu") und führt Befehle lokal aus. DaSilva OS im Browser synchronisiert den Status aller Lampen automatisch, du brauchst also im Frontend nichts weiter konfigurieren!
+                            </div>
                         </div>
                     </div>
                 )}

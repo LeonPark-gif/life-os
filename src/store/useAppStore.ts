@@ -43,6 +43,8 @@ export interface User {
         glassOpacity?: number;
         dockPosition?: 'bottom' | 'left' | 'right';
     };
+    gridLayouts?: Record<'mobile' | 'tablet' | 'desktop', any[]>; // For react-grid-layout
+    lastBriefingDate?: string; // YYYY-MM-DD
 }
 
 export type SmarthomeDeviceType = 'light' | 'switch' | 'sensor' | 'cover' | 'climate' | 'washer' | 'dishwasher' | 'pc';
@@ -254,6 +256,7 @@ interface UserSlice {
     currentUser: () => User;
     switchUser: (id: string) => void;
     updateUser: (id: string, updates: Partial<User>) => void;
+    updateGridLayouts: (id: string, breakpoint: 'mobile' | 'tablet' | 'desktop', layout: any[]) => void;
     updateUserLayout: (breakpoint: 'mobile' | 'tablet' | 'desktop', order: string[], sizes: Record<string, 'small' | 'medium' | 'large'>) => void;
     updateAiSettings: (settings: Partial<AISettings>) => void; // New Action
     updateThemeConfig: (config: Partial<User['themeConfig']>) => void; // New Action
@@ -261,6 +264,11 @@ interface UserSlice {
     verifyPin: (userId: string, pin: string) => boolean;
     updateUserPin: (userId: string, newPin: string | undefined) => void;
     updatePermissions: (userId: string, permissions: Partial<User['permissions']>) => void;
+
+    // Session Security (Not persisted in local storage)
+    isSessionUnlocked: boolean;
+    unlockSession: (pin: string) => boolean;
+    lockSession: () => void;
 
     // Mail Actions
     updateMailConfig: (userId: string, config: Partial<MailConfig>) => void;
@@ -395,6 +403,7 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
     ],
     activeUserId: 'admin', // Default
     isHydrated: false,
+    isSessionUnlocked: false,
 
     sparkSuggestion: null,
     showSparkBubble: false,
@@ -501,10 +510,42 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
         return state.users.find(u => u.id === state.activeUserId) || state.users[0];
     },
 
-    switchUser: (id) => set({ activeUserId: id }),
+    switchUser: (id) => {
+        const user = get().users.find(u => u.id === id);
+        if (user && user.pin) {
+            set({ activeUserId: id, isSessionUnlocked: false });
+        } else {
+            set({ activeUserId: id, isSessionUnlocked: true });
+        }
+    },
+
+    unlockSession: (pin) => {
+        const state = get();
+        const user = state.users.find(u => u.id === state.activeUserId);
+        if (!user || !user.pin || user.pin === pin) {
+            set({ isSessionUnlocked: true });
+            return true;
+        }
+        return false;
+    },
+
+    lockSession: () => set({ isSessionUnlocked: false }),
 
     updateUser: (id, updates) => set((state) => ({
         users: state.users.map(u => u.id === id ? { ...u, ...updates } : u)
+    })),
+
+    updateGridLayouts: (id, breakpoint, layout) => set((state) => ({
+        users: state.users.map(u => {
+            if (u.id !== id) return u;
+            return {
+                ...u,
+                gridLayouts: {
+                    ...(u.gridLayouts || { mobile: [], tablet: [], desktop: [] }),
+                    [breakpoint]: layout
+                }
+            };
+        })
     })),
 
     updateUserLayout: (breakpoint, order, sizes) => set((state) => ({

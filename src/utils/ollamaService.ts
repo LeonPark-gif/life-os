@@ -170,12 +170,34 @@ Antworte AUSSCHLIESSLICH in diesem strengen JSON-Format:
         }
     }
 
-    /**
-     * Placeholder für Audio-Transkription. Ollama hat nativ noch kein Whisper.
-     */
-    async analyzeAudio(_base64Audio: string, _mimeType: string): Promise<string> {
-        return "Audio-Transkription wird lokal noch nicht unterstützt.";
+    async generateImageCaption(base64Image: string): Promise<string> {
+        const cleanBase64 = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+        const { baseUrl } = this.getApiSettings();
+        const llavaModel = 'llava';
+
+        const prompt = `Generiere eine kurze, sarkastische, aber nostalgische Beschreibung für dieses Foto ("Memory of the day"). Max 1-2 Sätze auf Deutsch.`;
+
+        try {
+            const res = await fetch(`${baseUrl}/api/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: llavaModel,
+                    prompt: prompt,
+                    images: [cleanBase64],
+                    stream: false
+                })
+            });
+
+            if (!res.ok) throw new Error("Ollama Vision API Error");
+            const data = await res.json();
+            return data.response || "Ein Foto aus der Vergangenheit. Toll.";
+        } catch (e) {
+            console.warn("Vision-Modell für Caption nicht verfügbar.", e);
+            return "Eine nostalgische Erinnerung ohne KI-Kommentar.";
+        }
     }
+
 
     /**
      * Function Calling (Re-implemented via pure prompting for Ollama)
@@ -270,6 +292,27 @@ Fasse dich kurz (max 3 Sätze).`;
         if (!res.ok) throw new Error("Ollama API Error");
         const data = await res.json();
         return data.response?.trim() || "Kein Briefing.";
+    }
+
+    async summarizeEmail(content: string): Promise<string> {
+        const { baseUrl, model } = this.getApiSettings();
+        const prompt = `Fasse diese E-Mail kurz und prägnant in 2-3 Sätzen zusammen. Sei dabei direkt und antworte auf Deutsch:\n\n${content}`;
+
+        const payload = {
+            model: model,
+            prompt: prompt,
+            stream: false
+        };
+
+        const res = await fetch(`${baseUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Ollama API Error during summarization");
+        const data = await res.json();
+        return data.response?.trim() || "Keine Zusammenfassung generiert.";
     }
 }
 

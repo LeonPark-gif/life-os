@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, X, MessageSquare, Mic, Loader2, Bot, User, Trash2 } from 'lucide-react';
-import { ollamaService } from '../utils/ollamaService';
 import { nextcloudService, type NextcloudFile } from '../utils/nextcloudService';
 import { haService } from '../utils/haService';
 import { useAppStore, type ChatMessage } from '../store/useAppStore';
@@ -26,8 +25,7 @@ export default function AIChatWidget() {
 
     // Audio recording state
     const [isRecording, setIsRecording] = useState(false);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
+
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -140,64 +138,55 @@ export default function AIChatWidget() {
         }
     };
 
-    // --- AUDIO RECORDING ---
-    const handleAudioRecord = async () => {
-        if (!userObj.aiSettings?.geminiApiKey) {
-            alert("Ein Gemini API Key wird in den Einstellungen benötigt, um Audio-befehle nativ zu transkribieren.");
+    // --- AUDIO RECORDING (Web Speech API) ---
+    const handleAudioRecord = () => {
+        if (isRecording) {
+            // Stopping is handled by the browser automatically when speech ends,
+            // or we could force stop it if we kept a reference.
+            setIsRecording(false);
             return;
         }
 
-        if (isRecording) {
-            // Stop recording
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
-            }
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Dein Browser unterstützt die native Spracherkennung leider nicht.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'de-DE';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsRecording(true);
+        };
+
+        recognition.onresult = async (event: any) => {
+            const transcript = event.results[0][0].transcript;
             setIsRecording(false);
-        } else {
-            // Start recording
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream);
-                mediaRecorderRef.current = mediaRecorder;
-                audioChunksRef.current = [];
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
-
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                    // Clean up tracks to stop mic indicator in browser
-                    stream.getTracks().forEach(track => track.stop());
-
-                    setIsProcessing(true);
-                    try {
-                        const reader = new FileReader();
-                        reader.readAsDataURL(audioBlob);
-                        reader.onloadend = async () => {
-                            const base64Audio = reader.result as string;
-                            const transcribedText = await ollamaService.analyzeAudio(base64Audio, audioBlob.type);
-
-                            if (transcribedText && transcribedText !== "Unverständliches Audio.") {
-                                await processCommand(transcribedText);
-                            } else {
-                                setIsProcessing(false);
-                            }
-                        };
-                    } catch (error) {
-                        console.error("Audio recording processing failed", error);
-                        setIsProcessing(false);
-                    }
-                };
-
-                mediaRecorder.start();
-                setIsRecording(true);
-            } catch (err) {
-                console.error("Microphone access error", err);
-                alert("Mikrofon-Zugriff fehlgeschlagen. Bitte erlaube den Zugriff.");
+            if (transcript) {
+                await processCommand(transcript);
             }
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error", event.error);
+            setIsRecording(false);
+            if (event.error !== 'no-speech') {
+                alert("Spracherkennung fehlgeschlagen: " + event.error);
+            }
+        };
+
+        recognition.onend = () => {
+            setIsRecording(false);
+        };
+
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error("Could not start speech recognition", err);
+            setIsRecording(false);
         }
     };
 

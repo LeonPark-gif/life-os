@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Mail, Inbox, Send, Trash2, AlertOctagon, Edit3, X, Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Mail, Inbox, Send, Trash2, AlertOctagon, Edit3, X, Loader2, ArrowLeft, RefreshCw, Sparkles } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { getMailBridgeUrl } from '../utils/mailBridgeUrl';
+import { ollamaService } from '../utils/ollamaService';
 
 interface Email {
     uid: number;
@@ -21,6 +22,10 @@ export default function MailApp() {
     const [loading, setLoading] = useState(false);
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // AI Summary state
+    const [summary, setSummary] = useState<string | null>(null);
+    const [summarizing, setSummarizing] = useState(false);
 
     // Compose state
     const [composeTo, setComposeTo] = useState('');
@@ -84,6 +89,7 @@ export default function MailApp() {
         if (!config || !config.enabled) return;
         setLoading(true);
         setError(null);
+        setSummary(null);
         setView('reading');
         const bridgeUrl = getMailBridgeUrl(config.mailBridgeUrl);
         try {
@@ -134,6 +140,22 @@ export default function MailApp() {
             setError(err.message);
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleSummarize = async () => {
+        if (!selectedEmail) return;
+        setSummarizing(true);
+        setSummary(null);
+        try {
+            // Strip HTML tags and truncate to save context window depending on model
+            const textContent = selectedEmail.html ? selectedEmail.html.replace(/<[^>]*>?/gm, '').substring(0, 4000) : selectedEmail.subject;
+            const res = await ollamaService.summarizeEmail(textContent);
+            setSummary(res);
+        } catch (err) {
+            setSummary("Fehler bei der Zusammenfassung. Ist Ollama erreichbar?");
+        } finally {
+            setSummarizing(false);
         }
     };
 
@@ -283,23 +305,41 @@ export default function MailApp() {
                                 </div>
                             </div>
 
+                            {/* AI Summary Banner */}
+                            {summary && (
+                                <div className="mx-6 mt-6 p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-start gap-4">
+                                    <Sparkles className="text-cyan-400 shrink-0 mt-1" size={20} />
+                                    <p className="text-cyan-100 text-sm leading-relaxed">{summary}</p>
+                                </div>
+                            )}
+
                             {/* Email Body – sanitized via DOMPurify to prevent XSS */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white p-8 text-black text-base md:text-lg email-content-wrapper shadow-inner"
+                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white p-8 mt-6 text-black text-base md:text-lg email-content-wrapper shadow-inner"
                                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedEmail.html || '') }}
                             />
 
                             {/* Actions */}
-                            <div className="p-4 bg-black/40 border-t border-white/10 flex gap-4 shrink-0 justify-end">
-                                <button onClick={() => setView('compose')} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-lg">
-                                    <ArrowLeft size={16} /> Antworten
+                            <div className="p-4 bg-black/40 border-t border-white/10 flex flex-wrap gap-4 shrink-0 justify-between">
+                                <button
+                                    onClick={handleSummarize}
+                                    disabled={summarizing}
+                                    className="px-6 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-lg disabled:opacity-50"
+                                >
+                                    {summarizing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                    Zusammenfassen
                                 </button>
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleMoveEmail(selectedEmail.uid, 'Trash')} className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition-all shadow-lg flex items-center gap-2" title="Löschen">
-                                        <Trash2 size={16} /> <span className="hidden md:inline">Löschen</span>
+                                <div className="flex gap-2 ml-auto">
+                                    <button onClick={() => setView('compose')} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-lg">
+                                        <ArrowLeft size={16} /> Antworten
                                     </button>
-                                    <button onClick={() => handleMoveEmail(selectedEmail.uid, 'Junk')} className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shadow-lg rounded-xl transition-all flex items-center gap-2" title="Spam">
-                                        <AlertOctagon size={16} /> <span className="hidden md:inline">Spam</span>
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleMoveEmail(selectedEmail.uid, 'Trash')} className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition-all shadow-lg flex items-center gap-2" title="Löschen">
+                                            <Trash2 size={16} /> <span className="hidden md:inline">Löschen</span>
+                                        </button>
+                                        <button onClick={() => handleMoveEmail(selectedEmail.uid, 'Junk')} className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 shadow-lg rounded-xl transition-all flex items-center gap-2" title="Spam">
+                                            <AlertOctagon size={16} /> <span className="hidden md:inline">Spam</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </>

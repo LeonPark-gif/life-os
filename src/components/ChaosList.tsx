@@ -4,7 +4,6 @@ import { useAppStore, type ThemeColor, type Task } from '../store/useAppStore';
 import { Plus, Trash2, Archive, Check, X, Share2, Users, CheckSquare, Calendar as CalendarIcon, Loader2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { haService } from '../utils/haService';
 import { ollamaService } from '../utils/ollamaService';
 
 // Helper for Theme Colors
@@ -105,7 +104,6 @@ export default function ChaosList() {
         setNewTaskDueDate('');
 
         // Subtasks completed. Check for context processing.
-        const userObj = useAppStore.getState().currentUser();
         const lowerText = addedTaskText.toLowerCase();
         const isGrocery = lowerText.match(/kauf|supermarkt|rewe|lidl|aldi|edeka|netto/);
         const isSmartHome = lowerText.match(/licht|lampe|schalte|mach|heizung|rollo/);
@@ -120,10 +118,10 @@ export default function ChaosList() {
 
                 let suggestion;
                 const aiSettings = storeState.currentUser().aiSettings;
-                if (aiSettings?.geminiApiKey) {
+                if (aiSettings?.enabled && aiSettings?.proactiveHelp) {
                     const { ollamaService } = await import('../utils/ollamaService');
                     suggestion = await ollamaService.analyzeEntryStructured(addedTaskText, 'task', recentContext);
-                } else {
+                } else if (aiSettings?.enabled) {
                     const { haService } = await import('../utils/haService');
                     suggestion = await haService.analyzeEntry(addedTaskText, 'task', recentContext, aiSettings?.agentId);
                 }

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Image as ImageIcon, Camera } from 'lucide-react';
+import { Image as ImageIcon, Camera, Sparkles } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
+import { ollamaService } from '../utils/ollamaService';
 
 interface Photo {
     id: string;
     url: string;
     date: string;
+    caption?: string;
 }
 
 export default function ImmichWidget() {
@@ -30,7 +32,31 @@ export default function ImmichWidget() {
                 });
                 if (!res.ok) throw new Error('Failed to fetch photos');
                 const data = await res.json();
-                setPhotos(data.photos || []);
+                const fetchedPhotos: Photo[] = data.photos || [];
+                setPhotos(fetchedPhotos);
+
+                // Generate AI caption for the first photo using Ollama Vision
+                if (fetchedPhotos.length > 0) {
+                    try {
+                        const imgRes = await fetch(fetchedPhotos[0].url);
+                        const blob = await imgRes.blob();
+                        const reader = new FileReader();
+                        reader.readAsDataURL(blob);
+                        reader.onloadend = async () => {
+                            const base64data = reader.result as string;
+                            const caption = await ollamaService.generateImageCaption(base64data);
+                            setPhotos(prev => {
+                                if (prev.length === 0) return prev;
+                                const newPhotos = [...prev];
+                                newPhotos[0] = { ...newPhotos[0], caption };
+                                return newPhotos;
+                            });
+                        };
+                    } catch (e) {
+                        console.error('Failed to generate memory caption', e);
+                    }
+                }
+
             } catch (e) {
                 console.error('Immich error', e);
             } finally {
@@ -68,11 +94,22 @@ export default function ImmichWidget() {
                             className="flex-shrink-0 w-48 h-full rounded-2xl overflow-hidden relative shadow-lg"
                         >
                             <img src={photo.url} alt="Memory" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <p className="text-[13px] text-white font-semibold flex items-center gap-1.5">
+                            <img src={photo.url} alt="Memory" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-300 min-h-[50%]">
+                                <p className="text-[13px] text-white font-semibold flex items-center gap-1.5 mb-1.5 drop-shadow-md">
                                     <Camera size={12} className="text-pink-400" />
                                     {new Date(photo.date).getFullYear()}
                                 </p>
+                                {photo.caption && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="text-white/90 text-xs italic leading-tight border-l-2 border-pink-400/50 pl-2 drop-shadow-md"
+                                    >
+                                        <Sparkles size={10} className="inline-block text-cyan-400 mr-1" />
+                                        {photo.caption}
+                                    </motion.div>
+                                )}
                             </div>
                         </motion.div>
                     ))

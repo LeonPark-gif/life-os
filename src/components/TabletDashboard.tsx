@@ -4,11 +4,24 @@ import { Calendar, CheckCircle2, Circle, Clock, MessageSquare, Mic } from 'lucid
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import MACSAvatar from './MACSAvatar';
+// @ts-ignore
+import ReactGridLayout from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+import MediaController from './MediaController';
+
+// Bypass Vite's ESM strictness by accessing properties safely
+// @ts-ignore
+const Responsive = ReactGridLayout.Responsive || ReactGridLayout.default?.Responsive;
+// @ts-ignore
+const WidthProvider = ReactGridLayout.WidthProvider || ReactGridLayout.default?.WidthProvider;
+const ResponsiveGridLayout = WidthProvider(Responsive);
 
 export default function TabletDashboard() {
-    const users = useAppStore(state => state.users.filter(u => !u.isHidden && u.id !== 'admin'));
+    const user = useAppStore(state => state.currentUser());
     const allEvents = useAppStore(state => state.getVisibleEvents());
     const checklists = useAppStore(state => state.lists);
+    const updateGridLayouts = useAppStore(state => state.updateGridLayouts);
 
     const [time, setTime] = useState(new Date());
 
@@ -17,115 +30,117 @@ export default function TabletDashboard() {
         return () => clearInterval(timer);
     }, []);
 
-    // Helper to get today's and tomorrow's events for a user
-    const getUserEvents = (userId: string) => {
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+    // Helper functions
+    const userEvents = allEvents.filter(e =>
+        (e.ownerId === user.id || e.sharedWith.includes(user.id) || e.sharedWith.includes('all')) &&
+        (isSameDay(new Date(e.date), time) || isSameDay(new Date(e.date), new Date(time.getTime() + 86400000)))
+    ).slice(0, 5);
 
-        return allEvents.filter(e =>
-            (e.ownerId === userId || e.sharedWith.includes(userId) || e.sharedWith.includes('all')) &&
-            (isSameDay(new Date(e.date), today) || isSameDay(new Date(e.date), tomorrow))
-        ).slice(0, 5);
-    };
+    const userTasks = checklists
+        .filter(l => l.ownerId === user.id || l.sharedWith.includes(user.id))
+        .flatMap(l => l.tasks)
+        .filter(t => !t.completed)
+        .slice(0, 5);
 
-    // Helper to get open tasks for a user
-    const getUserTasks = (userId: string) => {
-        const userLists = checklists.filter(l => l.ownerId === userId || l.sharedWith.includes(userId));
-        return userLists.flatMap(l => l.tasks).filter(t => !t.completed).slice(0, 5);
+    // Grid Layout Configuration
+    const defaultLayout = [
+        { i: 'clock', x: 0, y: 0, w: 2, h: 2, static: true },
+        { i: 'avatar', x: 2, y: 0, w: 2, h: 2, static: true },
+        { i: 'calendar', x: 0, y: 2, w: 2, h: 3 },
+        { i: 'tasks', x: 2, y: 2, w: 2, h: 3 },
+        { i: 'media', x: 4, y: 0, w: 2, h: 3 }
+    ];
+
+    const currentLayout = user.gridLayouts?.tablet || defaultLayout;
+
+    const onLayoutChange = (newLayout: any) => {
+        updateGridLayouts(user.id, 'tablet', newLayout);
     };
 
     return (
         <div className="w-full h-full bg-[#0f1115] text-white flex flex-col p-8 overflow-hidden relative selection:bg-cyan-500/30">
-            {/* Header: Face & Clock */}
-            <div className="flex justify-between items-start mb-12">
-                <div className="flex flex-col">
-                    <h1 className="text-6xl font-light tracking-tighter text-white/90">
-                        {format(time, 'HH:mm')}
-                    </h1>
-                    <p className="text-xl text-gray-400 font-medium">
-                        {format(time, 'EEEE, d. MMMM', { locale: de })}
-                    </p>
-                </div>
+            <div className="flex-1 overflow-hidden relative">
+                <ResponsiveGridLayout
+                    className="layout"
+                    layouts={{ lg: currentLayout }}
+                    breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                    cols={{ lg: 6, md: 6, sm: 4, xs: 2, xxs: 1 }}
+                    rowHeight={100}
+                    onLayoutChange={(_layout: any, allLayouts: any) => onLayoutChange(allLayouts.lg || _layout)}
+                    isDraggable={true}
+                    isResizable={true}
+                    margin={[24, 24]}
+                >
+                    {/* 1. Clock Widget */}
+                    <div key="clock" className="flex flex-col justify-center">
+                        <h1 className="text-6xl font-light tracking-tighter text-white/90">
+                            {format(time, 'HH:mm')}
+                        </h1>
+                        <p className="text-xl text-gray-400 font-medium">
+                            {format(time, 'EEEE, d. MMMM', { locale: de })}
+                        </p>
+                    </div>
 
-                {/* Tabbie Face (Using MACSAvatar scaled up) */}
-                <div className="relative">
-                    <div className="absolute inset-0 bg-cyan-500/20 blur-3xl rounded-full" />
-                    <MACSAvatar />
-                </div>
-            </div>
+                    {/* 2. Avatar Widget */}
+                    <div key="avatar" className="relative flex items-center justify-center">
+                        <div className="absolute inset-0 bg-cyan-500/20 blur-3xl rounded-full scale-150" />
+                        <MACSAvatar />
+                    </div>
 
-            {/* Split Context Columns */}
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 overflow-hidden">
-                {users.slice(0, 4).map(user => {
-                    const userEvents = getUserEvents(user.id);
-                    const userTasks = getUserTasks(user.id);
-
-                    return (
-                        <div key={user.id} className="flex flex-col bg-[#1a1b1e]/80 border border-white/5 rounded-[32px] p-6 backdrop-blur-xl overflow-hidden">
-                            {/* User Header */}
-                            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/5">
-                                <div className="text-3xl bg-white/5 p-3 rounded-2xl shadow-inner border border-white/10">
-                                    {user.avatar}
-                                </div>
-                                <h2 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                                    {user.name}
-                                </h2>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8">
-                                {/* Calendar Section */}
-                                <section>
-                                    <h3 className="text-[11px] font-bold tracking-widest text-emerald-500 uppercase flex items-center gap-2 mb-4">
-                                        <Calendar size={14} /> Termine
-                                    </h3>
-                                    {userEvents.length === 0 ? (
-                                        <p className="text-sm text-gray-500 italic">Keine anstehenden Termine.</p>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {userEvents.map(evt => (
-                                                <div key={evt.id} className="bg-white/5 rounded-xl p-3 border border-white/5">
-                                                    <p className="font-semibold text-sm text-gray-200 truncate">{evt.title}</p>
-                                                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
-                                                        {isSameDay(new Date(evt.date), new Date()) ? (
-                                                            <span className="text-emerald-400 font-medium">Heute</span>
-                                                        ) : (
-                                                            <span>Morgen</span>
-                                                        )}
-                                                        {evt.isAllDay ? (
-                                                            <span className="text-purple-400">Ganztägig</span>
-                                                        ) : (
-                                                            <span className="flex items-center gap-1"><Clock size={10} /> {evt.time}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                    {/* 3. Calendar Widget */}
+                    <div key="calendar" className="flex flex-col bg-[#1a1b1e]/80 border border-white/5 rounded-[32px] p-6 backdrop-blur-xl overflow-hidden cursor-move">
+                        <h3 className="text-[11px] font-bold tracking-widest text-emerald-500 uppercase flex items-center gap-2 mb-4 shrink-0">
+                            <Calendar size={14} /> Termine
+                        </h3>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+                            {userEvents.length === 0 ? (
+                                <p className="text-sm text-gray-500 italic">Keine anstehenden Termine.</p>
+                            ) : (
+                                userEvents.map(evt => (
+                                    <div key={evt.id} className="bg-white/5 rounded-xl p-3 border border-white/5">
+                                        <p className="font-semibold text-sm text-gray-200 truncate">{evt.title}</p>
+                                        <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
+                                            {isSameDay(new Date(evt.date), time) ? (
+                                                <span className="text-emerald-400 font-medium">Heute</span>
+                                            ) : (
+                                                <span>Morgen</span>
+                                            )}
+                                            {evt.isAllDay ? (
+                                                <span className="text-purple-400">Ganztägig</span>
+                                            ) : (
+                                                <span className="flex items-center gap-1"><Clock size={10} /> {evt.time}</span>
+                                            )}
                                         </div>
-                                    )}
-                                </section>
-
-                                {/* Tasks Section */}
-                                <section>
-                                    <h3 className="text-[11px] font-bold tracking-widest text-blue-400 uppercase flex items-center gap-2 mb-4">
-                                        <CheckCircle2 size={14} /> Aufgaben
-                                    </h3>
-                                    {userTasks.length === 0 ? (
-                                        <p className="text-sm text-gray-500 italic">Alles erledigt!</p>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {userTasks.map(task => (
-                                                <div key={task.id} className="flex items-start gap-3 bg-transparent p-2 rounded-xl group">
-                                                    <Circle size={16} className="text-gray-600 mt-0.5 shrink-0" />
-                                                    <span className="text-sm text-gray-300 font-medium leading-snug">{task.text}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </section>
-                            </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
-                    );
-                })}
+                    </div>
+
+                    {/* 4. Tasks Widget */}
+                    <div key="tasks" className="flex flex-col bg-[#1a1b1e]/80 border border-white/5 rounded-[32px] p-6 backdrop-blur-xl overflow-hidden cursor-move">
+                        <h3 className="text-[11px] font-bold tracking-widest text-blue-400 uppercase flex items-center gap-2 mb-4 shrink-0">
+                            <CheckCircle2 size={14} /> Aufgaben
+                        </h3>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                            {userTasks.length === 0 ? (
+                                <p className="text-sm text-gray-500 italic">Alles erledigt!</p>
+                            ) : (
+                                userTasks.map(task => (
+                                    <div key={task.id} className="flex items-start gap-3 bg-transparent p-2 rounded-xl group">
+                                        <Circle size={16} className="text-gray-600 mt-0.5 shrink-0" />
+                                        <span className="text-sm text-gray-300 font-medium leading-snug">{task.text}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 5. Media Controller Widget */}
+                    <div key="media" className="cursor-move">
+                        <MediaController entityId={user.smarthomeDevices?.find(d => d.type === 'pc')?.entityId || 'media_player.spotify'} />
+                    </div>
+                </ResponsiveGridLayout>
             </div>
 
             {/* AI Control Bar at the bottom */}
@@ -144,3 +159,4 @@ export default function TabletDashboard() {
         </div>
     );
 }
+

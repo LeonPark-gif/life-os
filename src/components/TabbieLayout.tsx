@@ -105,7 +105,12 @@ export default function TabbieLayout({ activeTab, setActiveTab, children, onOpen
 
                     {/* Right side controls */}
                     <div className="flex justify-end items-center gap-4">
-                        <button onClick={onOpenSettings} className="text-gray-500 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10">
+                        {user?.pin && (
+                            <button onClick={() => useAppStore.getState().lockSession()} className="text-gray-500 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10" title="App sperren">
+                                <Shield size={18} />
+                            </button>
+                        )}
+                        <button onClick={onOpenSettings} className="text-gray-500 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-white/10" title="Einstellungen">
                             <Settings size={18} />
                         </button>
                     </div>
@@ -117,17 +122,24 @@ export default function TabbieLayout({ activeTab, setActiveTab, children, onOpen
                 </div>
             </motion.div>
 
-            {/* Bottom Floating Dock */}
+            {/* Floating Dock */}
             <motion.div
+                key={themeConfig.dockPosition || 'bottom'}
+                layout
                 className={`absolute z-20 flex ${themeConfig.dockPosition === 'left' ? 'left-6 top-1/2 -translate-y-1/2' : themeConfig.dockPosition === 'right' ? 'right-6 top-1/2 -translate-y-1/2' : 'bottom-6 left-1/2 -translate-x-1/2'}`}
                 drag
                 dragMomentum={false}
+                dragSnapToOrigin={true}
                 onDragEnd={(_e, info) => {
-                    const { x } = info.point;
+                    const { x, y } = info.point;
                     const w = window.innerWidth;
-                    let newPos: 'bottom' | 'left' | 'right' = 'bottom';
+                    const h = window.innerHeight;
+                    let newPos: 'bottom' | 'left' | 'right' = themeConfig.dockPosition || 'bottom';
+
+                    // Simple heuristic for dropping near edges
                     if (x < w * 0.25) newPos = 'left';
                     else if (x > w * 0.75) newPos = 'right';
+                    else if (y > h * 0.75) newPos = 'bottom';
 
                     if (newPos !== themeConfig.dockPosition) {
                         useAppStore.getState().updateThemeConfig({ dockPosition: newPos });

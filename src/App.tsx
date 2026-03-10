@@ -6,7 +6,7 @@ import AdminDashboard from './components/AdminDashboard';
 import TasksModule from './components/TasksModule';
 import HabitsModule from './components/HabitsModule';
 import WorkspacesModule from './components/WorkspacesModule';
-import { Camera, X, Settings as SettingsIcon, FileUp, Sparkles, Cpu, Calendar } from 'lucide-react';
+import { Camera, X, Settings as SettingsIcon, FileUp, Sparkles, Cpu, Calendar, Speaker } from 'lucide-react';
 import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
 import { useAppStore } from './store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,8 @@ import TabbieLayout from './components/TabbieLayout';
 import ScreentimeModule from './components/ScreentimeModule';
 import MailApp from './components/MailApp';
 import TabletDashboard from './components/TabletDashboard';
+import EntranceDashboard from './components/EntranceDashboard';
+import LockScreen from './components/LockScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'mission' | 'tasks' | 'habits' | 'chrono' | 'workspaces' | 'screentime' | 'mail' | 'admin'>('mission');
@@ -28,7 +30,11 @@ export default function App() {
   const importEvents = useAppStore(state => state.importEvents);
   const syncWithHA = useAppStore(state => state.syncWithHA);
   const isHydrated = useAppStore(state => state.isHydrated);
+  const isSessionUnlocked = useAppStore(state => state.isSessionUnlocked);
   const user = useAppStore(state => state.users.find(u => u.id === state.activeUserId) || state.users[0]);
+  const latestMqttEvent = useAppStore(state => state.latestMqttEvent);
+  const users = useAppStore(state => state.users);
+  const switchUser = useAppStore(state => state.switchUser);
 
   // 1. Mandatory Hooks at Top Level
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -104,6 +110,65 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isHydrated]);
 
+  // Morning Briefing & TTS Effect
+  useEffect(() => {
+    if (!isHydrated || !user || !isSessionUnlocked) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    if (user.lastBriefingDate !== today) {
+      const runBriefing = async () => {
+        try {
+          console.log('[Briefing] Initiating morning briefing...');
+          const state = useAppStore.getState();
+          const tasksCount = state.lists.filter(l => l.ownerId === user.id || l.sharedWith.includes('all')).flatMap(l => l.tasks).filter(t => !t.completed).length;
+
+          const eventsCount = state.events.filter(e => {
+            const eventDate = new Date(e.date).toISOString().split('T')[0];
+            return eventDate === today && (e.ownerId === user.id || e.sharedWith.includes('all') || e.participantIds.includes(user.id));
+          }).length;
+
+          const contextData = {
+            weather: "Wetterdaten per HA", // Could be enriched if weather entity state is available
+            tasks: `${tasksCount} offene Aufgaben`,
+            events: `${eventsCount} Termine heute`
+          };
+
+          const { ollamaService } = await import('./utils/ollamaService');
+          const briefingText = await ollamaService.generateBriefing("Guten Morgen", contextData);
+
+          console.log('[Briefing] Generated text:', briefingText);
+
+          // Use Browser TTS
+          if ('speechSynthesis' in window) {
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(briefingText);
+            utterance.lang = 'de-DE';
+            utterance.rate = 1.05;
+            utterance.pitch = 0.9; // Slightly deeper, more sarcastic tone
+
+            const voices = window.speechSynthesis.getVoices();
+            const germanVoice = voices.find(v => v.lang.startsWith('de') && (v.name.includes('Male') || v.name.includes('Google Deutsch')));
+            if (germanVoice) utterance.voice = germanVoice;
+
+            window.speechSynthesis.speak(utterance);
+          }
+
+          // Mark as done for today
+          updateUser(user.id, { lastBriefingDate: today });
+
+        } catch (e) {
+          console.error('[Briefing] Failed to run morning briefing', e);
+        }
+      };
+
+      // Delay briefly to allow HA connection and sync first
+      const timer = setTimeout(runBriefing, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isHydrated, activeUserId, isSessionUnlocked, user?.lastBriefingDate, updateUser]);
+
   // AI Smart Reminders Effect
   useEffect(() => {
     if (!isHydrated) return;
@@ -118,6 +183,33 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [isHydrated]);
+
+  // Presence / Auto-Profile Switcher Effect
+  useEffect(() => {
+    if (!latestMqttEvent || !latestMqttEvent.payload) return;
+
+    try {
+      const payload = JSON.parse(latestMqttEvent.payload);
+      // Depending on SSE or MQTT format, try to extract entity_id and state
+      const entityId = payload.entity_id || payload.event?.data?.entity_id;
+      const newState = payload.state || payload.new_state?.state || payload.event?.data?.new_state?.state;
+
+      if (entityId && newState) {
+        const matchingUser = users.find(u => u.personEntityId === entityId);
+
+        if (matchingUser && matchingUser.id !== activeUserId) {
+          // Trigger switch if state is 'home' or a specific room name
+          const activeStates = ['home', 'wohnzimmer', 'office', 'kueche', 'schlafzimmer'];
+          if (activeStates.includes(newState.toLowerCase())) {
+            console.log(`[Presence] Detected ${matchingUser.name} via ${entityId} (${newState}). Switching profile...`);
+            switchUser(matchingUser.id);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }, [latestMqttEvent]);
 
   // 2. Hydration Guard (After all hooks)
   if (!isHydrated) {
@@ -140,6 +232,22 @@ export default function App() {
       <div className="w-full h-screen bg-gray-950 flex flex-col items-center justify-center text-red-500">
         Kein Benutzerprofil gefunden. Bitte Seite neu laden.
       </div>
+    );
+  }
+
+  if (user.pin && !isSessionUnlocked) {
+    return <LockScreen />;
+  }
+
+  // 3.7 View routing via Query Param
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = urlParams.get('view');
+
+  if (viewParam === 'entrance') {
+    return (
+      <GlobalErrorBoundary componentName="Entrance Dashboard">
+        <EntranceDashboard />
+      </GlobalErrorBoundary>
     );
   }
 
@@ -513,7 +621,37 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Section 5: Info */}
+                  {/* Section 5: Smart Speaker Integration */}
+                  <div className="bg-[#3b82f6]/5 p-6 rounded-2xl border border-blue-500/20 hover:border-blue-500/40 transition-colors md:col-span-2">
+                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-blue-400">
+                      <Speaker size={20} /> Smart Speaker (Rhasspy/Wyoming)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-300 font-bold">Integration über Home Assistant</p>
+                        <p className="text-xs text-gray-400 leading-relaxed">
+                          DaSilva OS nutzt die native Wyoming-Integration von HA. Um deine Speaker (z.B. ESP32-S3-BOX) zu verbinden:
+                        </p>
+                        <ul className="text-xs text-gray-500 list-disc pl-4 space-y-1">
+                          <li>Installiere das <strong>Wyoming Protocol</strong> Add-on in HA.</li>
+                          <li>Aktiviere <strong>Whisper</strong> (STT) und <strong>Piper</strong> (TTS).</li>
+                          <li>Wähle unter "Voice Assistants" den DaSilva-Pipeline-Modus.</li>
+                        </ul>
+                      </div>
+                      <div className="bg-black/20 p-4 rounded-xl border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-2">Endpoint Info</p>
+                        <code className="text-[10px] text-cyan-400 block mb-1">HA_URL: {import.meta.env.VITE_HA_URL || 'http://homeassistant:8123'}</code>
+                        <code className="text-[10px] text-indigo-400 block">WEBSOCKET: /api/websocket</code>
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                          <p className="text-[10px] text-gray-500 leading-relaxed">
+                            Die Sprachbefehle werden direkt an den HA Conversation Agent gesendet und lokal verarbeitet.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 6: Info */}
                   <div className="bg-white/5 p-6 rounded-2xl border border-white/5 md:col-span-2">
                     <h3 className="text-xl font-bold mb-2 text-gray-300">Über DaSilva OS</h3>
                     <div className="space-y-2 text-sm text-gray-400">

@@ -27,7 +27,7 @@ export default function TasksModule() {
     const [taskMenuId, setTaskMenuId] = useState<string | null>(null);
 
     const activeUserId = useAppStore(state => state.activeUserId);
-    const currentUser = useAppStore(state => state.currentUser());
+
     const allLists = useAppStore(state => state.lists);
     const lists = allLists.filter(l => l.ownerId === activeUserId || (l.sharedWith && l.sharedWith.length > 0));
     const selectList = useAppStore(state => state.selectList);
@@ -151,10 +151,10 @@ export default function TasksModule() {
 
                 let suggestion;
                 const aiSettings = storeState.currentUser().aiSettings;
-                if (aiSettings?.geminiApiKey) {
+                if (aiSettings?.enabled && aiSettings?.proactiveHelp) {
                     const { ollamaService } = await import('../utils/ollamaService');
                     suggestion = await ollamaService.analyzeEntryStructured(taskText, 'task', recentTodos);
-                } else {
+                } else if (aiSettings?.enabled) {
                     const { haService } = await import('../utils/haService');
                     suggestion = await haService.analyzeEntry(taskText, 'task', recentTodos, aiSettings?.agentId);
                 }

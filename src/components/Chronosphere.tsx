@@ -189,10 +189,10 @@ export default function Chronosphere() {
                         const recentEvents = storeState.getVisibleEvents().slice(0, 10).map(e => e.title).join(', ');
 
                         let suggestion;
-                        if (user?.aiSettings?.geminiApiKey) {
+                        if (user?.aiSettings?.enabled && user?.aiSettings?.proactiveHelp) {
                             const { ollamaService } = await import('../utils/ollamaService');
                             suggestion = await ollamaService.analyzeEntryStructured(savedTitle, 'event', recentEvents);
-                        } else {
+                        } else if (user?.aiSettings?.enabled) {
                             const { haService } = await import('../utils/haService');
                             suggestion = await haService.analyzeEntry(savedTitle, 'event', recentEvents, user.aiSettings?.agentId);
                         }
@@ -257,7 +257,8 @@ export default function Chronosphere() {
 
         try {
             let eventData = null;
-            if (user?.aiSettings?.geminiApiKey) {
+            if (user?.aiSettings?.enabled) {
+                const { ollamaService } = await import('../utils/ollamaService');
                 eventData = await ollamaService.quickAddEvent(quickAddText, new Date().toISOString());
             } else {
                 eventData = await haService.quickAddEvent(quickAddText, user?.aiSettings?.agentId);
