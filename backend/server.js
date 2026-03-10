@@ -117,7 +117,7 @@ app.post('/api/state', (req, res) => {
 // ─────────────────────────────────────────────
 // DAILY BRIEFING ROUTE (OLLAMA)
 // ─────────────────────────────────────────────
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.178.78:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3'; // Default model
 
 app.post('/api/briefing', async (req, res) => {

@@ -415,7 +415,7 @@ const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) =
     systemConfig: {
         haUrl: '',
         haToken: '',
-        ollamaUrl: 'http://localhost:11434',
+        ollamaUrl: 'http://192.168.178.78:11434',
         ollamaModel: 'phi3:mini',
     },
     updateSystemConfig: (updates) => set((state) => ({
