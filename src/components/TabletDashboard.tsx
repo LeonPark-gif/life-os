@@ -5,17 +5,12 @@ import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import MACSAvatar from './MACSAvatar';
 // @ts-ignore
-import ReactGridLayout from 'react-grid-layout';
+import { ResponsiveGridLayout as _ResponsiveGridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import MediaController from './MediaController';
 
-// Bypass Vite's ESM strictness by accessing properties safely
-// @ts-ignore
-const Responsive = ReactGridLayout.Responsive || ReactGridLayout.default?.Responsive;
-// @ts-ignore
-const WidthProvider = ReactGridLayout.WidthProvider || ReactGridLayout.default?.WidthProvider;
-const ResponsiveGridLayout = WidthProvider(Responsive);
+const ResponsiveGridLayout = _ResponsiveGridLayout as any;
 
 export default function TabletDashboard() {
     const user = useAppStore(state => state.currentUser());
