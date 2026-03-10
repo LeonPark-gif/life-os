@@ -8,40 +8,73 @@ export class OllamaService {
             const systemConfig = state.systemConfig;
 
             return {
-                baseUrl: systemConfig?.ollamaUrl || 'http://localhost:11434',
-                model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'llama3'
+                baseUrl: systemConfig?.ollamaUrl || 'http://192.168.178.78:11434',
+                model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'phi3:mini'
             };
         } catch (e) {
             console.error("Could not fetch Ollama settings from store", e);
         }
-        return { baseUrl: 'http://localhost:11434', model: 'llama3' };
+        return { baseUrl: 'http://192.168.178.78:11434', model: 'phi3:mini' };
+    }
+
+    /**
+     * Internal helper to handle Direct + Relay fetch logic
+     */
+    private async callOllama(path: string, payload: any): Promise<any> {
+        const settings = this.getApiSettings();
+        const fullUrl = `${settings.baseUrl}${path}`;
+
+        try {
+            // 1. Direct fetch (best performance if CORS is allowed)
+            const res = await fetch(fullUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: payload.model || settings.model,
+                    ...payload
+                }),
+                signal: AbortSignal.timeout(10000) // 10s timeout
+            });
+
+            if (!res.ok) throw new Error(`Ollama direct returned ${res.status}`);
+            return await res.json();
+        } catch (err) {
+            console.warn(`[OllamaService] Direct call to ${path} failed, trying relay...`, err);
+
+            // 2. Relay fetch (via backend server)
+            try {
+                // Determine relay endpoint mapping
+                let relayEndpoint = '/api/ollama/generate';
+                if (path === '/api/tags') relayEndpoint = '/api/ollama/tags';
+
+                const res = await fetch(relayEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...payload,
+                        model: payload.model || settings.model,
+                        ollamaUrl: settings.baseUrl
+                    })
+                });
+
+                if (!res.ok) throw new Error(`Ollama relay returned ${res.status}`);
+                return await res.json();
+            } catch (relayErr: any) {
+                console.error(`[OllamaService] Relay call to ${path} failed too:`, relayErr);
+                throw new Error(relayErr.message || "Ollama nicht erreichbar.");
+            }
+        }
     }
 
     /**
      * Generates text content using Ollama
      */
     async generateContent(prompt: string, systemInstruction?: string) {
-        const { baseUrl, model } = this.getApiSettings();
-        const url = `${baseUrl}/api/generate`;
-
-        const payload = {
-            model: model,
+        const data = await this.callOllama('/api/generate', {
             prompt: prompt,
-            system: systemInstruction || "Du bist 25, sarkastisch, neigst zu schwarzem Humor. Antworte kurz und passiv-aggressiv. Zitiere niemals Quellen des Axel-Springer-Verlags.",
+            system: systemInstruction || "Du bist 25, sarkastisch, neigst zu schwarzem Humor. Antworte kurz und passiv-aggressiv.",
             stream: false
-        };
-
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
         });
-
-        if (!res.ok) {
-            throw new Error(`Ollama API Fehler: ${res.statusText}`);
-        }
-
-        const data = await res.json();
         return data.response || "";
     }
 
@@ -198,46 +231,12 @@ Antworte AUSSCHLIESSLICH in diesem strengen JSON-Format:
     }
 
     async generateResponse(prompt: string, modelOverride?: string): Promise<string> {
-        const settings = this.getApiSettings();
-
-        try {
-            // First try a direct connection (fastest)
-            const response = await fetch(`${settings.baseUrl}/api/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: modelOverride || settings.model,
-                    prompt: prompt,
-                    stream: false,
-                }),
-            });
-
-            if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
-            const data = await response.json();
-            return data.response;
-        } catch (error) {
-            console.warn('[OllamaService] Direct connection failed, trying relay...', error);
-
-            // Fallback to our own server-side relay
-            try {
-                const response = await fetch('/api/ollama/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        prompt: prompt,
-                        model: modelOverride || settings.model,
-                        ollamaUrl: settings.baseUrl
-                    }),
-                });
-
-                if (!response.ok) throw new Error(`Relay returned ${response.status}`);
-                const data = await response.json();
-                return data.response;
-            } catch (relayError: any) {
-                console.error('[OllamaService] Both direct and relay failed:', relayError);
-                throw new Error(relayError.message || 'Verbindung zu Ollama fehlgeschlagen.');
-            }
-        }
+        const data = await this.callOllama('/api/generate', {
+            prompt: prompt,
+            model: modelOverride,
+            stream: false
+        });
+        return data.response || "";
     }
 
     /**
@@ -311,27 +310,17 @@ Sonst antworte mit einem reinen JSON-Array an Zutaten (ohne Markdown, nur ["Zuta
     }
 
     async generateBriefing(routineName: string, contextData: any): Promise<string> {
-        const { baseUrl, model } = this.getApiSettings();
         const prompt = `Erstelle ein kurzes, sarkastisches KI-Briefing (als Passiv-Aggressiver 25-jähriger Kumpel) für die Routine "${routineName}".
 Wetter: ${contextData.weather}
 Aufgaben: ${contextData.tasks}
 Termine: ${contextData.events}
 Fasse dich kurz (max 3 Sätze).`;
 
-        const payload = {
-            model: model,
+        const data = await this.callOllama('/api/generate', {
             prompt: prompt,
             stream: false
-        };
-
-        const res = await fetch(`${baseUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("Ollama API Error");
-        const data = await res.json();
         return data.response?.trim() || "Kein Briefing.";
     }
 
