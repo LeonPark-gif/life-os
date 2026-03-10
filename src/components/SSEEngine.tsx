@@ -16,7 +16,7 @@ export function SSEEngine() {
 
         // Determine correct backend URL
         const mailConfig = user?.mailConfig;
-        const bridgeUrl = mailConfig?.mailBridgeUrl || 'http://localhost:8099';
+        const bridgeUrl = mailConfig?.mailBridgeUrl || window.location.origin;
 
         let eventSource: EventSource | null = null;
         let reconnectTimeout: ReturnType<typeof setTimeout>;

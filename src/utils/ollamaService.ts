@@ -197,6 +197,48 @@ Antworte AUSSCHLIESSLICH in diesem strengen JSON-Format:
         }
     }
 
+    async generateResponse(prompt: string, modelOverride?: string): Promise<string> {
+        const settings = this.getApiSettings();
+
+        try {
+            // First try a direct connection (fastest)
+            const response = await fetch(`${settings.baseUrl}/api/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: modelOverride || settings.model,
+                    prompt: prompt,
+                    stream: false,
+                }),
+            });
+
+            if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
+            const data = await response.json();
+            return data.response;
+        } catch (error) {
+            console.warn('[OllamaService] Direct connection failed, trying relay...', error);
+
+            // Fallback to our own server-side relay
+            try {
+                const response = await fetch('/api/ollama/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        model: modelOverride || settings.model,
+                        ollamaUrl: settings.baseUrl
+                    }),
+                });
+
+                if (!response.ok) throw new Error(`Relay returned ${response.status}`);
+                const data = await response.json();
+                return data.response;
+            } catch (relayError: any) {
+                console.error('[OllamaService] Both direct and relay failed:', relayError);
+                throw new Error(relayError.message || 'Verbindung zu Ollama fehlgeschlagen.');
+            }
+        }
+    }
 
     /**
      * Function Calling (Re-implemented via pure prompting for Ollama)

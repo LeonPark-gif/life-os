@@ -240,9 +240,9 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         const month = now.getMonth() + 1;
         const day = now.getDate();
 
-        // Search for assets on this day in past years
-        // Immich API: POST /api/search/metadata
-        const searchRes = await fetch(`${finalUrl}/api/assets/search`, {
+        // Search for assets on this day across all years
+        // We use metadata search to find assets taken on this specific day/month
+        const searchRes = await fetch(`${finalUrl}/api/search/metadata`, {
             method: 'POST',
             headers: {
                 'x-api-key': finalKey,
@@ -252,20 +252,20 @@ app.post('/api/photos/on-this-day', async (req, res) => {
                 day,
                 month,
                 type: 'IMAGE',
-                isArchived: false,
-                isFavorite: false // optional
+                isArchived: false
             })
         });
 
         if (!searchRes.ok) {
-            throw new Error(`Immich API error: ${searchRes.status}`);
+            const errText = await searchRes.text();
+            console.error('[Photos] Immich error response:', errText);
+            throw new Error(`Immich API error: ${searchRes.status} ${errText.substring(0, 100)}`);
         }
 
-        const photos = await searchRes.json();
+        const assets = await searchRes.json();
 
-        // Transform to URLs the frontend can use (proxied through us if needed, or direct)
-        // For now, return the IDs and base URL so the frontend can build the thumbnails.
-        const transformed = (photos.assets || []).map(asset => ({
+        // Transform results
+        const transformed = (assets || []).map(asset => ({
             id: asset.id,
             url: `${finalUrl}/api/assets/${asset.id}/thumbnail?size=thumbnail`,
             originalDate: asset.fileCreatedAt || asset.dateTimeOriginal
@@ -273,8 +273,12 @@ app.post('/api/photos/on-this-day', async (req, res) => {
 
         res.json({ success: true, photos: transformed });
     } catch (e) {
-        console.error('[Photos] Search error:', e.message);
-        res.status(500).json({ success: false, error: e.message });
+        console.error('[Photos] Search error details:', {
+            message: e.message,
+            stack: e.stack,
+            url: IMMICH_URL
+        });
+        res.status(500).json({ success: false, error: `Immich Fehler: ${e.message}` });
     }
 });
 

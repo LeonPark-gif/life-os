@@ -295,16 +295,24 @@ export default function AdminPanel() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const res = await fetch(`${systemConfig.ollamaUrl}/api/tags`);
-                                            if (res.ok) alert("Ollama bereit! (Client -> Ollama)");
-                                            else alert(`Ollama Fehler: ${res.status}`);
+                                            // Try relay test
+                                            const res = await fetch('/api/ollama/tags', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ ollamaUrl: systemConfig.ollamaUrl })
+                                            });
+                                            if (res.ok) alert("Ollama bereit! (Verbindung über Server)");
+                                            else {
+                                                const err = await res.json();
+                                                alert(`Ollama Fehler: ${err.error || res.status}`);
+                                            }
                                         } catch (e: any) {
-                                            alert(`Ollama Netzwerkfehler: ${e.message}\nPrüfe die IP in den Einstellungen.`);
+                                            alert(`Ollama Netzwerkfehler: ${e.message}`);
                                         }
                                     }}
                                     className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30 hover:bg-purple-500/40 transition-colors"
                                 >
-                                    Testen
+                                    Verbindung testen
                                 </button>
                             </div>
                             <code className="text-[10px] text-gray-400 block truncate">{systemConfig.ollamaUrl || 'http://localhost:11434'}</code>
