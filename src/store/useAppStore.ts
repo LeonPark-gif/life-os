@@ -1370,6 +1370,21 @@ export const createSmartListSlice: StateCreator<StoreState, [], [], SmartListSli
 import { haService } from '../utils/haService';
 import { debounce } from 'lodash';
 
+// Helper to safely set persistence error even if store is still initializing
+const safeSetPersistenceError = (error: string | null) => {
+    try {
+        // Late-bound check: only call if useAppStore is defined and initialized
+        if (typeof useAppStore !== 'undefined' && useAppStore.getState) {
+            useAppStore.getState().setPersistenceError(error);
+        } else {
+            console.warn('[HA Storage] Store not ready yet to receive error:', error);
+        }
+    } catch (e) {
+        // Silently fail to avoid crashing the whole initialization
+        console.error('[HA Storage] Failed to update store error state', e);
+    }
+};
+
 // Custom Storage Engine for Zustand that uses HA
 const haStorage: StateStorage = {
     getItem: async (name: string): Promise<string | null> => {
@@ -1378,7 +1393,7 @@ const haStorage: StateStorage = {
             const data = await haService.getState();
 
             // If we successfully get something (even null), clear previous errors
-            useAppStore.getState().setPersistenceError(null);
+            safeSetPersistenceError(null);
 
             if (data && data[name]) {
                 console.log(`[HA Storage] Found data for ${name}`);
@@ -1388,7 +1403,7 @@ const haStorage: StateStorage = {
             return null;
         } catch (e) {
             console.error(`[HA Storage] Failed to load state from HA`, e);
-            useAppStore.getState().setPersistenceError(e instanceof Error ? e.message : 'Fehler beim Laden von Home Assistant');
+            safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Laden von Home Assistant');
             return null; // Return null to let Zustand use defaults
         }
     },
@@ -1401,10 +1416,10 @@ const haStorage: StateStorage = {
         try {
             console.log(`[HA Storage] Removing ${name} from HA... (Resetting to empty state)`);
             await haService.saveState({ [name]: null }); // Effectively clears it
-            useAppStore.getState().setPersistenceError(null);
+            safeSetPersistenceError(null);
         } catch (e) {
             console.error(`[HA Storage] Failed to remove state from HA`, e);
-            useAppStore.getState().setPersistenceError('Fehler beim Löschen in Home Assistant');
+            safeSetPersistenceError('Fehler beim Löschen in Home Assistant');
         }
     },
 };
@@ -1433,13 +1448,13 @@ const debouncedSaveToHA = debounce(async (name: string, value: string) => {
         await haService.saveState(newState);
         lastSavedValue = value; // Update cache on success
         console.log(`[HA Storage] Save complete.`);
-        useAppStore.getState().setPersistenceError(null);
+        safeSetPersistenceError(null);
     } catch (e) {
         console.error(`[HA Storage] Failed to save state to HA`, e);
         // We set the error, which triggers another persist cycle, 
         // but our 'value === lastSavedValue' check above will now catch it.
         lastSavedValue = value; // Mark as "attempted" to break the loop
-        useAppStore.getState().setPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
+        safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
     }
 }, 2000);
 
