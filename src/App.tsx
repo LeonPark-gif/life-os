@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ParticleBackground from './components/ParticleBackground';
 import MissionControl from './components/MissionControl';
 import Chronosphere from './components/Chronosphere';
-import AdminDashboard from './components/AdminDashboard';
+import AdminPanel from './components/AdminPanel';
 import TasksModule from './components/TasksModule';
 import HabitsModule from './components/HabitsModule';
 import WorkspacesModule from './components/WorkspacesModule';
@@ -41,6 +41,15 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const icsInputRef = useRef<HTMLInputElement>(null);
+
+  const systemConfig = useAppStore(state => state.systemConfig);
+
+  // Configuration Sync Effect
+  useEffect(() => {
+    import('./utils/haService').then(({ haService }) => {
+      haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
+    });
+  }, [systemConfig.haUrl, systemConfig.haToken]);
 
   // Background Sync Effect
   useEffect(() => {
@@ -363,8 +372,8 @@ export default function App() {
           )}
 
           {activeTab === 'admin' && activeUserId === 'admin' && (
-            <GlobalErrorBoundary componentName="Admin Dashboard">
-              <AdminDashboard />
+            <GlobalErrorBoundary componentName="Admin Panel">
+              <AdminPanel />
             </GlobalErrorBoundary>
           )}
         </div>

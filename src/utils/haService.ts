@@ -1,40 +1,43 @@
 export class HAService {
-    private url: string;
-    private token: string;
+    private url: string = '';
+    private token: string = '';
     private entityId = 'sensor.life_os_data';
 
     constructor() {
-        // Use injected window.ENV if available (from Docker server.js), fallback to import.meta.env
-        // Safely extract from available environments
         const winEnv = (window as any).ENV;
         const viteEnv = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}) as any;
 
-        const envUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || '';
-        const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
+        const initialUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || '';
+        const initialToken = winEnv?.VITE_HA_TOKEN || viteEnv.VITE_HA_TOKEN || '';
 
-        this.url = isDev ? '' : envUrl;
+        this.updateConfig(initialUrl, initialToken);
+    }
 
-        // Remove trailing slash if present to prevent double slashes in fetch
+    public updateConfig(newUrl: string, newToken: string) {
+        // In dev mode, we usually proxy or use a fixed URL, 
+        // but if a new URL is provided, we should respect it.
+        this.url = newUrl;
+
+        // Remove trailing slash if present
         if (this.url.endsWith('/')) {
             this.url = this.url.slice(0, -1);
         }
 
-        this.token = winEnv?.VITE_HA_TOKEN || viteEnv.VITE_HA_TOKEN || '';
+        this.token = newToken;
 
-        if (!this.token) {
-            console.warn('[HAService] No VITE_HA_TOKEN found. Smarthome features and persistence will not work.');
-        }
+        if (this.url && this.token) {
+            console.log(`[HAService] Configuration updated: ${this.url}`);
 
-        // --- NEW: Localhost Mismatch Check ---
-        const isLocalHostUrl = this.url.includes('localhost') || this.url.includes('127.0.0.1');
-        const isPageLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            // --- Localhost Mismatch Check ---
+            const isLocalHostUrl = this.url.includes('localhost') || this.url.includes('127.0.0.1');
+            const isPageLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-        if (isLocalHostUrl && !isPageLocal && this.url !== '') {
-            console.error(
-                `[HAService] MISMATCH DETECTED: You are accessing Life OS via ${window.location.hostname}, ` +
-                `but VITE_HA_URL is set to 'localhost'. The browser cannot reach HA this way. ` +
-                `Please update your .env to use the server's real IP (e.g. 192.168.x.x).`
-            );
+            if (isLocalHostUrl && !isPageLocal) {
+                console.warn(
+                    `[HAService] MISMATCH: You are accessing Life OS via ${window.location.hostname}, ` +
+                    `but your HA URL is 'localhost'. Please use the server's real IP.`
+                );
+            }
         }
     }
 

@@ -10,13 +10,20 @@ interface BackupInfo {
 }
 
 export default function AdminPanel() {
-    const { users, addUser, removeUser, updateMailConfig } = useAppStore();
+    const { users, addUser, removeUser, updateMailConfig, systemConfig, updateSystemConfig } = useAppStore();
     const activeUser = useAppStore(state => state.users.find(u => u.id === state.activeUserId) || state.users[0]);
+
+    // Sync HA config when it changes in the store
+    useEffect(() => {
+        import('../utils/haService').then(({ haService }) => {
+            haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
+        });
+    }, [systemConfig.haUrl, systemConfig.haToken]);
     const [newName, setNewName] = useState('');
     const [newAvatar, setNewAvatar] = useState('🧑');
     const [newColor, setNewColor] = useState<string>('text-indigo-400');
     const [newPin, setNewPin] = useState('');
-    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'system' | 'mail' | 'cloud' | 'calendar' | 'backup' | 'ai'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'system' | 'mail' | 'cloud' | 'calendar' | 'backup' | 'ai' | 'connections'>('profile');
     const [selectedMailUserId, setSelectedMailUserId] = useState<string>('admin');
     const [selectedCloudUserId, setSelectedCloudUserId] = useState<string>('admin');
     const displayUsers = users.filter(u => !u.isHidden);
@@ -165,6 +172,7 @@ export default function AdminPanel() {
                     { id: 'mail', icon: <Mail size={14} />, label: 'Mail' },
                     { id: 'cloud', icon: <Database size={14} />, label: 'Cloud' },
                     { id: 'calendar', icon: <CalendarIcon size={14} />, label: 'Kalender' },
+                    { id: 'connections', icon: <RefreshCw size={14} />, label: 'Verbindungen' },
                     { id: 'backup', icon: <Database size={14} />, label: 'Backup' },
                 ].map(tab => (
                     <button
@@ -716,6 +724,68 @@ export default function AdminPanel() {
                         </div>
                     )
                 }
+
+
+                {activeTab === 'connections' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                            <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                                <Server size={16} className="text-rose-400" /> Home Assistant
+                            </h4>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Server URL</label>
+                                    <input
+                                        type="text"
+                                        value={systemConfig.haUrl}
+                                        onChange={(e) => updateSystemConfig({ haUrl: e.target.value })}
+                                        placeholder="https://deine-ha-instanz.ui.nabu.casa"
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500/50"
+                                    />
+                                    <p className="text-[10px] text-gray-500 mt-1 italic">Vollständige URL inkl. https://</p>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Long-Lived Access Token</label>
+                                    <input
+                                        type="password"
+                                        value={systemConfig.haToken}
+                                        onChange={(e) => updateSystemConfig({ haToken: e.target.value })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500/50"
+                                    />
+                                    <p className="text-[10px] text-gray-500 mt-1 italic">Erstellt in deinen HA Profil-Einstellungen.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                            <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                                <RefreshCw size={16} className="text-indigo-400" /> Ollama AI (Lokal)
+                            </h4>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Ollama Server URL</label>
+                                    <input
+                                        type="text"
+                                        value={systemConfig.ollamaUrl}
+                                        onChange={(e) => updateSystemConfig({ ollamaUrl: e.target.value })}
+                                        placeholder="http://192.168.178.x:11434"
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Modell Name</label>
+                                    <input
+                                        type="text"
+                                        value={systemConfig.ollamaModel}
+                                        onChange={(e) => updateSystemConfig({ ollamaModel: e.target.value })}
+                                        placeholder="llama3"
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
 
             </div >

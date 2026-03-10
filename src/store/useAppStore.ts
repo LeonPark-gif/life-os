@@ -145,6 +145,13 @@ export interface ImmichConfig {
     apiKey?: string;
 }
 
+export interface SystemConfig {
+    haUrl: string;
+    haToken: string;
+    ollamaUrl: string;
+    ollamaModel: string;
+}
+
 export interface Task {
     id: string;
     text: string;
@@ -388,7 +395,12 @@ export interface CalendarSlice {
     syncCalDav: () => Promise<void>;
 }
 
-type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice;
+interface SystemSlice {
+    systemConfig: SystemConfig;
+    updateSystemConfig: (updates: Partial<SystemConfig>) => void;
+}
+
+type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice & SystemSlice;
 
 // --- Implementations ---
 
@@ -396,6 +408,18 @@ type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & Workspac
 console.log("Store File Loading...");
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) => ({
+    systemConfig: {
+        haUrl: '',
+        haToken: '',
+        ollamaUrl: 'http://localhost:11434',
+        ollamaModel: 'phi3:mini',
+    },
+    updateSystemConfig: (updates) => set((state) => ({
+        systemConfig: { ...state.systemConfig, ...updates }
+    })),
+});
 
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
@@ -1467,6 +1491,7 @@ export const useAppStore = create<StoreState>()(
             const habits = createHabitSlice(set, get, api);
             const workspaces = createWorkspaceSlice(set, get, api);
             const smartLists = createSmartListSlice(set, get, api);
+            const system = createSystemSlice(set, get, api);
 
             return {
                 ...user,
@@ -1475,6 +1500,7 @@ export const useAppStore = create<StoreState>()(
                 ...habits,
                 ...workspaces,
                 ...smartLists,
+                ...system,
                 // Hydration happens automatically via persist middleware now
                 isHydrated: false,
                 setHydrated: (state) => set({ isHydrated: state })
@@ -1500,7 +1526,8 @@ export const useAppStore = create<StoreState>()(
                 people: state.people,
                 habits: state.habits,
                 workspaceItems: state.workspaceItems,
-                recipeProfiles: state.recipeProfiles // Persist learning data!
+                recipeProfiles: state.recipeProfiles, // Persist learning data!
+                systemConfig: state.systemConfig
             }),
         }
     )
