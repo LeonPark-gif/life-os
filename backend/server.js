@@ -114,6 +114,33 @@ app.post('/api/state', (req, res) => {
     }
 });
 
+app.post('/api/ha/proxy', async (req, res) => {
+    try {
+        const { url, token, method = 'GET', body, path } = req.body;
+        if (!url || !token) {
+            return res.status(400).json({ success: false, error: 'HA URL and Token are required' });
+        }
+
+        const targetUrl = path ? `${url}${path}` : url;
+        console.log(`[HA Proxy] ${method} -> ${targetUrl}`);
+
+        const response = await fetch(targetUrl, {
+            method,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: method !== 'GET' ? JSON.stringify(body) : undefined
+        });
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (e) {
+        console.error('[HA Proxy] Error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ─────────────────────────────────────────────
 // DAILY BRIEFING ROUTE (OLLAMA)
 // ─────────────────────────────────────────────

@@ -271,18 +271,25 @@ export default function AdminPanel() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const res = await fetch(`${systemConfig.haUrl}/api/`, {
-                                                headers: { 'Authorization': `Bearer ${systemConfig.haToken}` }
+                                            // Test via backend relay
+                                            const res = await fetch('/api/ha/proxy', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    url: systemConfig.haUrl,
+                                                    token: systemConfig.haToken,
+                                                    path: '/api/states'
+                                                })
                                             });
-                                            if (res.ok) alert("HA Verbindung erfolgreich! (Client -> HA)");
+                                            if (res.ok) alert("Home Assistant bereit! (Verbindung über Server)");
                                             else alert(`HA Fehler: ${res.status}`);
                                         } catch (e: any) {
-                                            alert(`HA Netzwerkfehler: ${e.message}\nPrüfe CORS oder IP.`);
+                                            alert(`HA Netzwerkfehler: ${e.message}`);
                                         }
                                     }}
-                                    className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded border border-cyan-500/30 hover:bg-cyan-500/40 transition-colors"
+                                    className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded border border-indigo-500/30 hover:bg-indigo-500/40 transition-colors"
                                 >
-                                    Testen
+                                    Verbindung testen
                                 </button>
                             </div>
                             <code className="text-[10px] text-gray-400 block truncate">{systemConfig.haUrl || 'Keine URL'}</code>

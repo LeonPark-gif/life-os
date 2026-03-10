@@ -69,26 +69,57 @@ export class HAService {
     // Cache the last known state to detect external changes
     public lastSync: string | null = null;
 
+    private async fetchHA(path: string, options: any = {}) {
+        const method = options.method || 'GET';
+        const body = options.body ? JSON.parse(options.body) : undefined;
+
+        try {
+            // 1. Try DIRECT connection first
+            const res = await fetch(`${this.url}${path}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            return res;
+        } catch (error: any) {
+            // 2. If fetch fails (Network error / CORS), try PROXY
+            if (error.name === 'TypeError' || error.message.includes('fetch')) {
+                console.warn(`[HAService] Direct fetch to ${path} failed, attempting via Proxy...`);
+                try {
+                    const proxyRes = await fetch('/api/ha/proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: this.url,
+                            token: this.token,
+                            method: method,
+                            path: path,
+                            body: body
+                        })
+                    });
+                    return proxyRes;
+                } catch (proxyError: any) {
+                    console.error('[HAService] Proxy fetch also failed:', proxyError);
+                    throw error; // Throw the original error or a combined one
+                }
+            }
+            throw error;
+        }
+    }
+
     async getState(includeMeta = false) {
         if (!this.token) return null;
         try {
             console.log(`[HAService] Fetching state from HA (Chunking enabled)...`);
-            const res = await fetch(`${this.url}/api/states/${this.entityId}_0`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const res = await this.fetchHA(`/api/states/${this.entityId}_0`);
 
             if (!res.ok) {
                 if (res.status === 401) throw new Error('Home Assistant Token ungültig oder abgelaufen (401).');
-                if (res.status === 404 && this.url === '' && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-                    throw new Error('VITE_HA_URL ist leer. Im Entwicklungsmodus (npm run dev) muss die URL gesetzt sein!');
-                }
 
-                const legacyRes = await fetch(`${this.url}/api/states/${this.entityId}`, {
-                    headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-                });
+                const legacyRes = await this.fetchHA(`/api/states/${this.entityId}`);
                 if (!legacyRes.ok) {
                     if (legacyRes.status === 404) return null;
                     throw new Error(`HA API Error: ${legacyRes.status}`);
@@ -101,17 +132,11 @@ export class HAService {
             const totalChunks = masterData.attributes.total_chunks || 1;
             let fullJsonString = masterData.attributes.data_chunk || '';
 
-            // Update lastSync timestamp from HA metadata
             this.lastSync = masterData.attributes.last_updated;
 
-            // Read exactly totalChunks - 1 more chunks (chunk 0 is already read).
-            // Each chunk is fetched individually with its own error handling to prevent
-            // stale chunks from corrupting the full JSON string.
             for (let i = 1; i < totalChunks; i++) {
                 try {
-                    const chunkRes = await fetch(`${this.url}/api/states/${this.entityId}_${i}`, {
-                        headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-                    });
+                    const chunkRes = await this.fetchHA(`/api/states/${this.entityId}_${i}`);
                     if (!chunkRes.ok) throw new Error(`Fehler beim Laden von Daten-Teil ${i} (HTTP ${chunkRes.status})`);
                     const chunkData = await this.safeParseJson(chunkRes);
                     fullJsonString += (chunkData.attributes.data_chunk || '');
@@ -142,7 +167,6 @@ export class HAService {
 
             console.log(`[HAService] Saving state. Chunks needed: ${newTotalChunks}, total chars: ${jsonString.length}`);
 
-            // Write all new chunks
             for (let i = 0; i < newTotalChunks; i++) {
                 const chunkData = jsonString.substring(i * this.CHUNK_SIZE, (i + 1) * this.CHUNK_SIZE);
                 const currentEntityId = `${this.entityId}_${i}`;
@@ -159,34 +183,23 @@ export class HAService {
                     }
                 };
 
-                const response = await fetch(`${this.url}/api/states/${currentEntityId}`, {
+                const response = await this.fetchHA(`/api/states/${currentEntityId}`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${this.token}`,
-                        'Content-Type': 'application/json',
-                    },
                     body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) throw new Error(`Speicherfehler in Home Assistant (${response.status})`);
             }
 
-            // Invalidate any stale chunks from a previous save that had MORE chunks.
-            // We try to clean up up to 10 old chunks beyond what we just wrote.
-            // This prevents stale chunks from being read back and corrupting the JSON.
             for (let i = newTotalChunks; i < newTotalChunks + 10; i++) {
                 const staleEntityId = `${this.entityId}_${i}`;
                 try {
-                    const checkRes = await fetch(`${this.url}/api/states/${staleEntityId}`, {
-                        headers: { 'Authorization': `Bearer ${this.token}` },
-                    });
-                    if (checkRes.status === 404) break; // No more stale chunks exist, stop
+                    const checkRes = await this.fetchHA(`/api/states/${staleEntityId}`);
+                    if (checkRes.status === 404) break;
                     if (!checkRes.ok) break;
 
-                    // Overwrite stale chunk with an empty/obsolete sentinel
-                    await fetch(`${this.url}/api/states/${staleEntityId}`, {
+                    await this.fetchHA(`/api/states/${staleEntityId}`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             state: "obsolete",
                             attributes: {
@@ -200,7 +213,7 @@ export class HAService {
                     });
                     console.log(`[HAService] Cleaned up stale chunk: ${staleEntityId}`);
                 } catch {
-                    break; // Stop cleanup on error, don't fail the whole save
+                    break;
                 }
             }
 
@@ -213,17 +226,10 @@ export class HAService {
         }
     }
 
-
-    // New: Get specific entity state
     async getEntityState(entityId: string) {
         if (!this.token) return null;
         try {
-            const res = await fetch(`${this.url}/api/states/${entityId}`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const res = await this.fetchHA(`/api/states/${entityId}`);
             if (!res.ok) throw new Error(res.statusText);
             return await res.json();
         } catch (error) {
@@ -232,17 +238,11 @@ export class HAService {
         }
     }
 
-    // New: Get all entities
     async getEntities() {
         if (!this.token) return [];
         try {
             console.log(`[HAService] Fetching all entities`);
-            const res = await fetch(`${this.url}/api/states`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const res = await this.fetchHA('/api/states');
             if (!res.ok) throw new Error(res.statusText);
             return await res.json();
         } catch (error) {
@@ -251,17 +251,12 @@ export class HAService {
         }
     }
 
-    // New: Call a service (turn_on, turn_off, etc.)
     async callService(domain: string, service: string, serviceData: any = {}) {
         if (!this.token) return;
         try {
             console.log(`[HAService] Calling service ${domain}.${service}`, serviceData);
-            const res = await fetch(`${this.url}/api/services/${domain}/${service}`, {
+            const res = await this.fetchHA(`/api/services/${domain}/${service}`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify(serviceData)
             });
             if (!res.ok) throw new Error(await res.text());
@@ -273,7 +268,6 @@ export class HAService {
         }
     }
 
-    // New: Process text with HA Conversation API (Gemini or Local)
     async processConversation(text: string, agentId?: string) {
         if (!this.token) return null;
         try {
@@ -285,18 +279,14 @@ export class HAService {
                 bodyData.agent_id = agentId;
             }
 
-            const res = await fetch(`${this.url}/api/conversation/process`, {
+            const res = await this.fetchHA('/api/conversation/process', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify(bodyData)
             });
 
             if (!res.ok) throw new Error(res.statusText);
             const data = await res.json();
-            return data; // Returns { speech: { plain: { speech: "..." } } } usually
+            return data;
         } catch (error) {
             console.error('[HAService] Conversation failed:', error);
             return null;
