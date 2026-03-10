@@ -181,4 +181,5 @@ volumes:
   paperless-media:
   firefly-db-data:
   firefly-upload:
-  whisper-data: # networks removed for host mode
+  whisper-data:
+  piper-data:
