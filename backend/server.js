@@ -166,6 +166,47 @@ Hier sind die Daten für heute:
     }
 });
 
+app.post('/api/ollama/generate', async (req, res) => {
+    try {
+        const { prompt, model, ollamaUrl } = req.body;
+        const TARGET_URL = ollamaUrl || OLLAMA_URL;
+        const TARGET_MODEL = model || OLLAMA_MODEL;
+
+        console.log(`[Ollama Relay] Forwarding to ${TARGET_URL}...`);
+        const response = await fetch(`${TARGET_URL}/api/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: TARGET_MODEL,
+                prompt: prompt,
+                stream: false
+            })
+        });
+
+        if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
+        const data = await response.json();
+        res.json({ success: true, response: data.response });
+    } catch (e) {
+        console.error('[Ollama Relay] Error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/ollama/tags', async (req, res) => {
+    try {
+        const { ollamaUrl } = req.body;
+        const TARGET_URL = ollamaUrl || OLLAMA_URL;
+        const response = await fetch(`${TARGET_URL}/api/tags`);
+        if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
+        const data = await response.json();
+        res.json({ success: true, models: data.models || [] });
+    } catch (e) {
+        console.error('[Ollama Relay] Tags Error:', e.message);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+
 // ─────────────────────────────────────────────
 // IMMICH PHOTO BRIDGE
 // ─────────────────────────────────────────────
