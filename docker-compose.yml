@@ -8,39 +8,12 @@ services:
       dockerfile: Dockerfile
     container_name: life-os
     restart: unless-stopped
-    ports:
-      - "8099:8099"
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - PORT=8099
-    volumes:
-      - life-os-config:/config
-      - life-os-logs:/app/logs
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-    healthcheck:
-      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8099', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - life-os-net
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
+    # ports and networks removed for host mode
 
-  # ─────────────────────────────────────────────
-  # 2. UPDATER: Watchtower
-  # ─────────────────────────────────────────────
+    # ─────────────────────────────────────────────
+    # 2. UPDATER: Watchtower
+    # ─────────────────────────────────────────────
   watchtower:
     image: containrrr/watchtower
     container_name: watchtower
@@ -52,8 +25,7 @@ services:
       - WATCHTOWER_INCLUDE_STOPPED=true
       - WATCHTOWER_REVIVE_STOPPED=false
       - WATCHTOWER_POLL_INTERVAL=86400 # Check once a day
-    networks:
-      - life-os-net
+    network_mode: host
 
   # ─────────────────────────────────────────────
   # 3. DOCUMENTS: Paperless-ngx Stack
@@ -64,8 +36,7 @@ services:
     restart: unless-stopped
     volumes:
       - paperless-redis-data:/data
-    networks:
-      - life-os-net
+    network_mode: host
 
   paperless-db:
     image: postgres:15
@@ -77,8 +48,7 @@ services:
       - POSTGRES_DB=paperless
       - POSTGRES_USER=paperless
       - POSTGRES_PASSWORD=${PAPERLESS_DB_PASS:-paperless_pass_123}
-    networks:
-      - life-os-net
+    network_mode: host
 
   paperless-gotenberg:
     image: gotenberg/gotenberg:8
@@ -88,15 +58,13 @@ services:
       - "gotenberg"
       - "--chromium-disable-javascript=true"
       - "--chromium-allow-list=file:///tmp/.*"
-    networks:
-      - life-os-net
+    network_mode: host
 
   paperless-tika:
     image: apache/tika:latest
     container_name: paperless-tika
     restart: unless-stopped
-    networks:
-      - life-os-net
+    network_mode: host
 
   paperless-web:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
@@ -107,27 +75,19 @@ services:
       - paperless-broker
       - paperless-gotenberg
       - paperless-tika
-    ports:
-      - "8000:8000"
-    volumes:
-      - paperless-data:/usr/src/paperless/data
-      - paperless-media:/usr/src/paperless/media
-      - ./paperless-export:/usr/src/paperless/export
-      - ./paperless-consume:/usr/src/paperless/consume
+    network_mode: host
     environment:
-      - PAPERLESS_REDIS=redis://paperless-broker:6379
-      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_REDIS=redis://localhost:6379
+      - PAPERLESS_DBHOST=localhost
       - PAPERLESS_DBUSER=paperless
       - PAPERLESS_DBPASS=${PAPERLESS_DB_PASS:-paperless_pass_123}
       - PAPERLESS_TIKA_ENABLED=1
-      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://paperless-gotenberg:3000
-      - PAPERLESS_TIKA_ENDPOINT=http://paperless-tika:9998
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://localhost:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://localhost:9998
       - PAPERLESS_URL=${PAPERLESS_URL:-}
       - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_to_random_string}
       - PAPERLESS_TIME_ZONE=Europe/Berlin
       - PAPERLESS_OCR_LANGUAGE=deu
-    networks:
-      - life-os-net
 
   # ─────────────────────────────────────────────
   # 4. FINANCES: Firefly III Stack
@@ -143,8 +103,7 @@ services:
       - MYSQL_DATABASE=firefly
     volumes:
       - firefly-db-data:/var/lib/mysql
-    networks:
-      - life-os-net
+    network_mode: host
 
   firefly-app:
     image: fireflyiii/core:latest
@@ -152,22 +111,17 @@ services:
     restart: unless-stopped
     depends_on:
       - firefly-db
-    ports:
-      - "9091:8080"
-    volumes:
-      - firefly-upload:/var/www/html/storage/upload
+    network_mode: host
     environment:
       - APP_KEY=${FIREFLY_APP_KEY:-SomeRandomStringOf32CharsExactly}
       - APP_URL=${FIREFLY_URL:-http://localhost:8080}
       - DB_CONNECTION=mysql
-      - DB_HOST=firefly-db
+      - DB_HOST=127.0.0.1
       - DB_PORT=3306
       - DB_DATABASE=firefly
       - DB_USERNAME=firefly
       - DB_PASSWORD=${FIREFLY_DB_PASS:-firefly_db_secret}
       - TZ=Europe/Berlin
-    networks:
-      - life-os-net
 
   firefly-importer:
     image: fireflyiii/data-importer:latest
@@ -175,15 +129,12 @@ services:
     restart: unless-stopped
     depends_on:
       - firefly-app
-    ports:
-      - "8082:8080"
+    network_mode: host
     environment:
-      - FIREFLY_III_URL=http://firefly-app:8080
+      - FIREFLY_III_URL=http://localhost:8080
       - VANITY_URL=${FIREFLY_URL:-http://localhost:8080}
       - FIREFLY_III_ACCESS_TOKEN=${FIREFLY_PAT_TOKEN:-}
       - CONNECTION_TIMEOUT=31.14
-    networks:
-      - life-os-net
 
   # ─────────────────────────────────────────────
   # 5. VOICE: Wyoming Pipeline (Local STT & TTS)
@@ -195,10 +146,7 @@ services:
     command: --model tiny-int8 --language de --beam-size 1
     volumes:
       - whisper-data:/data
-    ports:
-      - "10300:10300"
-    networks:
-      - life-os-net
+    network_mode: host
 
   piper:
     image: rhasspy/wyoming-piper
@@ -207,10 +155,7 @@ services:
     command: --voice de_DE-thorsten-high
     volumes:
       - piper-data:/data
-    ports:
-      - "10200:10200"
-    networks:
-      - life-os-net
+    network_mode: host
   # ─────────────────────────────────────────────
   # 6. MQTT: Mosquitto Broker (Optional but recommended)
   # ─────────────────────────────────────────────
@@ -225,8 +170,7 @@ services:
   #     - mosquitto-data:/mosquitto/data
   #     - mosquitto-log:/mosquitto/log
   #   # Note: For testing, it runs without auth by default if no config is provided
-  #   networks:
-  #     - life-os-net
+  #   network_mode: host
 
 volumes:
   life-os-config:
@@ -237,12 +181,4 @@ volumes:
   paperless-media:
   firefly-db-data:
   firefly-upload:
-  whisper-data:
-  piper-data:
-    # mosquitto-data:
-    # mosquitto-log:
-
-
-networks:
-  life-os-net:
-    driver: bridge
+  whisper-data: # networks removed for host mode
