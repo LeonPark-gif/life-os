@@ -3,7 +3,6 @@ import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
 import { haService } from '../utils/haService';
-import debounce from 'lodash/debounce';
 
 
 // --- Types ---
@@ -1413,10 +1412,28 @@ const safeSetPersistenceError = (error: string | null) => {
     }
 };
 
+// Custom debounce implementation to avoid lodash ESM/CJS build issues
+function customDebounce<T extends (...args: any[]) => any>(
+    func: T,
+    wait: number
+): (...args: Parameters<T>) => void {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    return function (...args: Parameters<T>) {
+        const later = () => {
+            timeout = null;
+            func(...args);
+        };
+        if (timeout !== null) {
+            clearTimeout(timeout);
+        }
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // Debounced actual save function to prevent spamming the HA API
 let lastSavedValue: string | null = null;
 
-const debouncedSaveToHA = debounce(async (name: string, value: string) => {
+const debouncedSaveToHA = customDebounce(async (name: string, value: string) => {
     // If the data hasn't changed since the last attempt (even if it failed),
     // don't try again just because 'persistenceError' was updated in the store.
     if (value === lastSavedValue) {
