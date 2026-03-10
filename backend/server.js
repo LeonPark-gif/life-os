@@ -767,10 +767,11 @@ if (fs.existsSync(DIST_DIR)) {
             if (err) return res.sendFile(indexPath); // Fallback
 
             const envScript = `<script>
-                window.ENV = {
-                    VITE_HA_URL: ${JSON.stringify(process.env.VITE_HA_URL || '')},
-                    VITE_HA_TOKEN: ${JSON.stringify(process.env.VITE_HA_TOKEN || '')}
-                };
+                window.ENV = ${JSON.stringify(
+                Object.keys(process.env)
+                    .filter(key => key.startsWith('VITE_'))
+                    .reduce((acc, key) => ({ ...acc, [key]: process.env[key] }), {})
+            )};
             </script>`;
             const modifiedHtml = html.replace('</head>', `${envScript}</head>`);
             res.send(modifiedHtml);

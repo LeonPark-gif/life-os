@@ -5,15 +5,21 @@ export class HAService {
 
     constructor() {
         // Use injected window.ENV if available (from Docker server.js), fallback to import.meta.env
-        const envUrl = (window as any).ENV?.VITE_HA_URL || import.meta.env.VITE_HA_URL || '';
-        this.url = import.meta.env.DEV ? '' : envUrl;
+        // Safely extract from available environments
+        const winEnv = (window as any).ENV;
+        const viteEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+
+        const envUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || '';
+        const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
+
+        this.url = isDev ? '' : envUrl;
 
         // Remove trailing slash if present to prevent double slashes in fetch
         if (this.url.endsWith('/')) {
             this.url = this.url.slice(0, -1);
         }
 
-        this.token = (window as any).ENV?.VITE_HA_TOKEN || import.meta.env.VITE_HA_TOKEN || '';
+        this.token = winEnv?.VITE_HA_TOKEN || viteEnv.VITE_HA_TOKEN || '';
 
         if (!this.token) {
             console.warn('[HAService] No VITE_HA_TOKEN found. Smarthome features and persistence will not work.');
@@ -67,7 +73,7 @@ export class HAService {
 
             if (!res.ok) {
                 if (res.status === 401) throw new Error('Home Assistant Token ungültig oder abgelaufen (401).');
-                if (res.status === 404 && this.url === '' && import.meta.env.DEV) {
+                if (res.status === 404 && this.url === '' && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
                     throw new Error('VITE_HA_URL ist leer. Im Entwicklungsmodus (npm run dev) muss die URL gesetzt sein!');
                 }
 
