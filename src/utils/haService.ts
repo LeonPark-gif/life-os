@@ -7,7 +7,7 @@ export class HAService {
         // Use injected window.ENV if available (from Docker server.js), fallback to import.meta.env
         // Safely extract from available environments
         const winEnv = (window as any).ENV;
-        const viteEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+        const viteEnv = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}) as any;
 
         const envUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || '';
         const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
