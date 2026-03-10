@@ -1410,23 +1410,35 @@ const haStorage: StateStorage = {
 };
 
 // Debounced actual save function to prevent spamming the HA API
+let lastSavedValue: string | null = null;
+
 const debouncedSaveToHA = debounce(async (name: string, value: string) => {
+    // If the data hasn't changed since the last attempt (even if it failed),
+    // don't try again just because 'persistenceError' was updated in the store.
+    if (value === lastSavedValue) {
+        return;
+    }
+
     try {
         console.log(`[HA Storage] Executing save to HA for ${name}`);
         const currentHaState = await haService.getState() || {};
         const parsedValue = JSON.parse(value);
 
-        // Merge with existing HA state in case we store other things there later
+        // Merge with existing HA state
         const newState = {
             ...currentHaState,
             [name]: parsedValue
         };
 
         await haService.saveState(newState);
+        lastSavedValue = value; // Update cache on success
         console.log(`[HA Storage] Save complete.`);
-        useAppStore.getState().setPersistenceError(null); // Clear error on success
+        useAppStore.getState().setPersistenceError(null);
     } catch (e) {
         console.error(`[HA Storage] Failed to save state to HA`, e);
+        // We set the error, which triggers another persist cycle, 
+        // but our 'value === lastSavedValue' check above will now catch it.
+        lastSavedValue = value; // Mark as "attempted" to break the loop
         useAppStore.getState().setPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
     }
 }, 2000);

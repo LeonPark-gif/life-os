@@ -18,6 +18,18 @@ export class HAService {
         if (!this.token) {
             console.warn('[HAService] No VITE_HA_TOKEN found. Smarthome features and persistence will not work.');
         }
+
+        // --- NEW: Localhost Mismatch Check ---
+        const isLocalHostUrl = this.url.includes('localhost') || this.url.includes('127.0.0.1');
+        const isPageLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (isLocalHostUrl && !isPageLocal && this.url !== '') {
+            console.error(
+                `[HAService] MISMATCH DETECTED: You are accessing Life OS via ${window.location.hostname}, ` +
+                `but VITE_HA_URL is set to 'localhost'. The browser cannot reach HA this way. ` +
+                `Please update your .env to use the server's real IP (e.g. 192.168.x.x).`
+            );
+        }
     }
 
     // Reduced from 15000 to 10000 to safely stay under HA's 16KB attribute limit

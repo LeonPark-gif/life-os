@@ -236,7 +236,11 @@ export default function App() {
   }
 
   if (user.pin && !isSessionUnlocked) {
-    return <LockScreen />;
+    return (
+      <GlobalErrorBoundary componentName="LockScreen">
+        <LockScreen />
+      </GlobalErrorBoundary>
+    );
   }
 
   // 3.7 View routing via Query Param
