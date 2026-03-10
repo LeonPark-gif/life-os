@@ -403,6 +403,7 @@ interface SystemSlice {
 
 type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice & SystemSlice;
 
+
 // --- Implementations ---
 
 // Debug Logger
@@ -421,6 +422,7 @@ const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) =
         systemConfig: { ...state.systemConfig, ...updates }
     })),
 });
+
 
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
