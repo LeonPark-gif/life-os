@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { ShieldAlert, Plus, Trash2, User as UserIcon, Settings, Server, Mail, Save, Database, Download, RefreshCw, CheckCircle, AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
 import { getAddonUrl } from '../utils/mailBridgeUrl';
+import { haService } from '../utils/haService';
 
 interface BackupInfo {
     filename: string;
@@ -15,9 +16,7 @@ export default function AdminPanel() {
 
     // Sync HA config when it changes in the store
     useEffect(() => {
-        import('../utils/haService').then(({ haService }) => {
-            haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
-        });
+        haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
     }, [systemConfig.haUrl, systemConfig.haToken]);
     const [newName, setNewName] = useState('');
     const [newAvatar, setNewAvatar] = useState('🧑');

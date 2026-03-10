@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { parseICS } from './utils/icsImport';
 import GlobalSparkBubble from './components/GlobalSparkBubble';
 import { StatusLedEngine } from './components/StatusLedEngine';
+import { haService } from './utils/haService';
 import { SSEEngine } from './components/SSEEngine';
 import TabbieLayout from './components/TabbieLayout';
 import ScreentimeModule from './components/ScreentimeModule';
@@ -46,9 +47,7 @@ export default function App() {
 
   // Configuration Sync Effect
   useEffect(() => {
-    import('./utils/haService').then(({ haService }) => {
-      haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
-    });
+    haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
   }, [systemConfig.haUrl, systemConfig.haToken]);
 
   // Background Sync Effect
