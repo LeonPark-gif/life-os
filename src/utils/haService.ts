@@ -124,8 +124,11 @@ export class HAService {
             const parsed = JSON.parse(fullJsonString);
             return includeMeta ? { data: parsed, last_updated: masterData.attributes.last_updated } : parsed;
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('[HAService] Failed to fetch state:', error);
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                throw new Error('Verbindung zu Home Assistant fehlgeschlagen. Prüfe deine Netzwerkverbindung, die HA-URL und ob CORS-Header im HA-Addon erlaubt sind.');
+            }
             throw error;
         }
     }

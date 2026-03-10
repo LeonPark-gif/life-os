@@ -20,7 +20,7 @@ import ScreentimeModule from './components/ScreentimeModule';
 import MailApp from './components/MailApp';
 import TabletDashboard from './components/TabletDashboard';
 import EntranceDashboard from './components/EntranceDashboard';
-import LockScreen from './components/LockScreen';
+import ProfileSelectionScreen from './components/ProfileSelectionScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'mission' | 'tasks' | 'habits' | 'chrono' | 'workspaces' | 'screentime' | 'mail' | 'admin'>('mission');
@@ -243,10 +243,10 @@ export default function App() {
     );
   }
 
-  if (user.pin && !isSessionUnlocked) {
+  if (!isSessionUnlocked) {
     return (
-      <GlobalErrorBoundary componentName="LockScreen">
-        <LockScreen />
+      <GlobalErrorBoundary componentName="ProfileSelection">
+        <ProfileSelectionScreen />
       </GlobalErrorBoundary>
     );
   }

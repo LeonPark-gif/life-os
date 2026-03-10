@@ -264,6 +264,51 @@ export default function AdminPanel() {
                 )}
                 {activeTab === 'users' && (
                     <div className="space-y-6">
+                        {/* HA Connection Test */}
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Home Assistant API</span>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const res = await fetch(`${systemConfig.haUrl}/api/`, {
+                                                headers: { 'Authorization': `Bearer ${systemConfig.haToken}` }
+                                            });
+                                            if (res.ok) alert("HA Verbindung erfolgreich! (Client -> HA)");
+                                            else alert(`HA Fehler: ${res.status}`);
+                                        } catch (e: any) {
+                                            alert(`HA Netzwerkfehler: ${e.message}\nPrüfe CORS oder IP.`);
+                                        }
+                                    }}
+                                    className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded border border-cyan-500/30 hover:bg-cyan-500/40 transition-colors"
+                                >
+                                    Testen
+                                </button>
+                            </div>
+                            <code className="text-[10px] text-gray-400 block truncate">{systemConfig.haUrl || 'Keine URL'}</code>
+                        </div>
+
+                        {/* Ollama Connection Test */}
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Ollama KI API</span>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const res = await fetch(`${systemConfig.ollamaUrl}/api/tags`);
+                                            if (res.ok) alert("Ollama bereit! (Client -> Ollama)");
+                                            else alert(`Ollama Fehler: ${res.status}`);
+                                        } catch (e: any) {
+                                            alert(`Ollama Netzwerkfehler: ${e.message}\nPrüfe die IP in den Einstellungen.`);
+                                        }
+                                    }}
+                                    className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30 hover:bg-purple-500/40 transition-colors"
+                                >
+                                    Testen
+                                </button>
+                            </div>
+                            <code className="text-[10px] text-gray-400 block truncate">{systemConfig.ollamaUrl || 'http://localhost:11434'}</code>
+                        </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/10">
                             <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
                                 <UserIcon size={16} /> Neuen Account anlegen

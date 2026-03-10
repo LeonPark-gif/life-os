@@ -33,11 +33,14 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
                 const allTasks = lists.flatMap(l => l.tasks).filter(t => !t.completed);
                 const todaysHabits = habits;
 
+                const systemConfig = useAppStore.getState().systemConfig;
+
                 const res = await fetch('/api/briefing', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         date: todayStr,
+                        ollamaUrl: systemConfig.ollamaUrl,
                         calendarEvents: todaysEvents.map(e => ({ title: e.title, time: e.time })),
                         tasks: allTasks.map(t => t.text).slice(0, 5), // top 5 tasks
                         habits: todaysHabits.map(h => ({ name: h.name, completionsTotal: Object.keys(h.completedDates || {}).length }))

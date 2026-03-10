@@ -122,7 +122,8 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3'; // Default model
 
 app.post('/api/briefing', async (req, res) => {
     try {
-        const { date, calendarEvents, tasks, habits } = req.body;
+        const { date, calendarEvents, tasks, habits, ollamaUrl } = req.body;
+        const TARGET_OLLAMA_URL = ollamaUrl || OLLAMA_URL;
 
         let prompt = `Du bist MACS, der sarkastische und humorvolle Desk-Buddy des Nutzers. 
 Generiere ein kurzes "Daily Briefing" für heute (${date}).
@@ -135,9 +136,9 @@ Hier sind die Daten für heute:
 - Gewohnheiten: ${JSON.stringify(habits)}
 `;
 
-        console.log(`[Briefing] Requesting briefing from Ollama at ${OLLAMA_URL}...`);
+        console.log(`[Briefing] Requesting briefing from Ollama at ${TARGET_OLLAMA_URL}...`);
 
-        const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+        const ollamaRes = await fetch(`${TARGET_OLLAMA_URL}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
