@@ -98,7 +98,8 @@ export default function MissionControl() {
 
     const smarthomeDevices = useMemo(() => {
         const devices = user?.smarthomeDevices || [];
-        if (!permissions?.allowedZones || permissions.allowedZones.includes('all')) return devices;
+        // Default allow if no permissions exist or 'all' is explicitly listed
+        if (!permissions?.allowedZones || permissions.allowedZones.length === 0 || permissions.allowedZones.includes('all')) return devices;
         return devices.filter(d => d.zone && permissions.allowedZones.includes(d.zone));
     }, [user, permissions]);
 

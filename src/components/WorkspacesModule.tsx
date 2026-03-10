@@ -27,7 +27,8 @@ export default function WorkspacesModule() {
     const workspaceItems = useAppStore(state => state.workspaceItems);
 
     const filteredWorkspaceItems = workspaceItems.filter(item => {
-        if (!permissions?.allowedZones || permissions.allowedZones.includes('all')) return true;
+        // Default allow if no permissions exist or 'all' is explicitly listed
+        if (!permissions?.allowedZones || permissions.allowedZones.length === 0 || permissions.allowedZones.includes('all')) return true;
         return !item.zone || permissions.allowedZones.includes(item.zone);
     });
 

@@ -231,7 +231,7 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         const finalKey = imApiKey || IMMICH_API_KEY;
         const finalUrl = imUrl || IMMICH_URL;
 
-        if (!finalKey) {
+        if (!finalKey || !finalUrl) {
             return res.json({ success: true, photos: [] });
         }
 
@@ -239,22 +239,20 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         const month = now.getMonth() + 1;
         const day = now.getDate();
 
-        // Optional: Call Immich memory API if available, 
-        // or search via timeline API for assets from this month/day in past years.
-        // For simplicity, we just use a dummy response or make a real search if API key exists.
-
-        // Example Immich API call for searching:
-        const searchRes = await fetch(`${finalUrl}/api/search/metadata`, {
+        // Search for assets on this day in past years
+        // Immich API: POST /api/search/metadata
+        const searchRes = await fetch(`${finalUrl}/api/assets/search`, {
             method: 'POST',
             headers: {
                 'x-api-key': finalKey,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                // Immich search API specifics (we are mocking this since it depends on Immich version)
-                // In actual deployment, user uses the /api/assets/memory or similar endpoint
-                isFavorite: true // just an example to return something nice
+                day,
+                month,
+                type: 'IMAGE',
+                isArchived: false,
+                isFavorite: false // optional
             })
         });
 
@@ -262,20 +260,19 @@ app.post('/api/photos/on-this-day', async (req, res) => {
             throw new Error(`Immich API error: ${searchRes.status}`);
         }
 
-        const data = await searchRes.json();
-        const assets = data.assets?.items || [];
+        const photos = await searchRes.json();
 
-        // We return the thumbnail URLs so the frontend can render them directly
-        const photos = assets.slice(0, 5).map(asset => ({
+        // Transform to URLs the frontend can use (proxied through us if needed, or direct)
+        // For now, return the IDs and base URL so the frontend can build the thumbnails.
+        const transformed = (photos.assets || []).map(asset => ({
             id: asset.id,
-            url: `${finalUrl}/api/assets/${asset.id}/thumbnail?size=preview&key=${finalKey}`,
-            date: asset.fileCreatedAt
+            url: `${finalUrl}/api/assets/${asset.id}/thumbnail?size=thumbnail`,
+            originalDate: asset.fileCreatedAt || asset.dateTimeOriginal
         }));
 
-        res.json({ success: true, photos });
-
+        res.json({ success: true, photos: transformed });
     } catch (e) {
-        console.error('[Immich] Error fetching photos:', e.message);
+        console.error('[Photos] Search error:', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });

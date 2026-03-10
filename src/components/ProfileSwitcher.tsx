@@ -53,7 +53,7 @@ export default function ProfileSwitcher({ isOpen, onClose }: ProfileSwitcherProp
 
             if (newPin.length === 4) {
                 if (verifyPin(selectedUser!, newPin)) {
-                    switchUser(selectedUser!);
+                    switchUser(selectedUser!, true);
                     onClose();
                 } else {
                     setIsError(true);

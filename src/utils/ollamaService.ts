@@ -5,12 +5,11 @@ export class OllamaService {
         try {
             const state = useAppStore.getState();
             const activeUser = state.currentUser();
+            const systemConfig = state.systemConfig;
 
-            // Verwende die in AppStore hinterlegte (gemini)Settings vorübergehend weiter, 
-            // oder falle auf Standardwerte zurück. Idealerweise passen wir das in der UI später an.
             return {
-                baseUrl: 'http://localhost:11434', // In Produktion: IP des Linux-Hosts
-                model: activeUser?.aiSettings?.geminiModel || 'llama3'
+                baseUrl: systemConfig?.ollamaUrl || 'http://localhost:11434',
+                model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'llama3'
             };
         } catch (e) {
             console.error("Could not fetch Ollama settings from store", e);

@@ -60,26 +60,31 @@ export default function MailApp() {
     };
 
     const fetchInbox = async (showLoading = true) => {
-        if (!config || !config.enabled) return;
+        if (!config || !config.enabled) {
+            console.log('[Mail] Skipping fetch: email not enabled for user');
+            return;
+        }
         if (showLoading) setLoading(true);
         setError(null);
         const bridgeUrl = getMailBridgeUrl(config.mailBridgeUrl);
+        console.log(`[Mail] Fetching inbox from ${bridgeUrl} for ${config.imapUser}...`);
         try {
             const data = await safeJsonFetch(`${bridgeUrl}/api/mail/inbox`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 // Explicitly pass limit:20 to ensure the server returns 20 emails.
-                // Without this, the server-side default is used but may be
-                // overridden by unexpected fields in the config object.
                 body: JSON.stringify({ ...config, limit: 20, folder: 'INBOX' })
             });
+            console.log(`[Mail] Received inbox data: success=${data.success}, count=${data.emails?.length || 0}`);
             if (data.success) {
                 setEmails(data.emails);
             } else {
                 setError(data.error);
+                console.error('[Mail] Server returned error:', data.error);
             }
         } catch (err: any) {
             setError(err.message);
+            console.error('[Mail] Fetch failed:', err);
         } finally {
             if (showLoading) setLoading(false);
         }

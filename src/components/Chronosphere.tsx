@@ -133,7 +133,12 @@ export default function Chronosphere() {
         const matchedColor = Object.entries(userLabels).find(([_, label]) => label === event.label)?.[0];
 
         // placeholder color
-        return matchedColor || 'stone';
+        return matchedColor || event.color || 'stone';
+    };
+
+    const isWasteEvent = (item: any) => {
+        const title = (item.title || item.text || '').toLowerCase();
+        return title.includes('müll') || title.includes('abfall') || title.includes('tonne') || title.includes('wertstoff') || title.includes('bioabfall');
     };
 
     const handleEditEvent = (event: CalendarEvent) => {
@@ -413,7 +418,19 @@ export default function Chronosphere() {
 
                                             {/* Event/Task Visuals */}
                                             <div className="flex-1 flex flex-col gap-[2px] overflow-hidden">
-                                                {allItems.slice(0, 4).map((item, idx) => (
+                                                {/* Waste Items as dots first for visibility */}
+                                                <div className="flex flex-wrap gap-1 mb-1">
+                                                    {allItems.filter(isWasteEvent).map((item, idx) => (
+                                                        <div
+                                                            key={`waste-${idx}`}
+                                                            className={`w-2 h-2 rounded-full ${item.isTask ? 'bg-indigo-500' : (colorMap[getEventColor(item as CalendarEvent)] || 'bg-blue-500')}`}
+                                                            title={(item as any).title || (item as any).text}
+                                                        />
+                                                    ))}
+                                                </div>
+
+                                                {/* Regular Items as bars */}
+                                                {allItems.filter(item => !isWasteEvent(item)).slice(0, 3).map((item, idx) => (
                                                     <div
                                                         key={idx}
                                                         className={`text-[10px] px-1.5 py-0.5 rounded truncate text-white/90 font-medium ${item.isTask ? 'bg-indigo-500/80' : (colorMap[getEventColor(item as CalendarEvent)] || 'bg-blue-500/80')}`}
@@ -421,9 +438,9 @@ export default function Chronosphere() {
                                                         {(item as any).title || (item as any).text}
                                                     </div>
                                                 ))}
-                                                {allItems.length > 4 && (
+                                                {allItems.filter(item => !isWasteEvent(item)).length > 3 && (
                                                     <div className="text-[10px] text-gray-500 pl-1 font-medium mt-1">
-                                                        +{allItems.length - 4} weitere
+                                                        +{allItems.filter(item => !isWasteEvent(item)).length - 3} weitere
                                                     </div>
                                                 )}
                                             </div>

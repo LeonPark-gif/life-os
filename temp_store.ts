@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import { haService } from '../utils/haService';
 
 
 // --- Types ---
@@ -23,8 +22,6 @@ export interface User {
     statusLed?: StatusLedConfig;
     weatherEntityId?: string; // Optional custom weather entity
     mailConfig?: MailConfig;
-    nextcloudConfig?: NextcloudConfig; // New: Per-user Nextcloud
-    immichConfig?: ImmichConfig;       // New: Per-user Immich
     calDavAccounts?: CalDavConfig[]; // New: Multiple CalDAV accounts
     showSchoolHolidays?: boolean; // New: School holidays toggle
     pin?: string;             // 4-digit PIN for profile protection
@@ -42,10 +39,8 @@ export interface User {
         wallpaper?: string;
         accentColor?: string;
         glassOpacity?: number;
-        dockPosition?: 'bottom' | 'left' | 'right';
+        dockPosition?: { x: number; y: number };
     };
-    gridLayouts?: Record<'mobile' | 'tablet' | 'desktop', any[]>; // For react-grid-layout
-    lastBriefingDate?: string; // YYYY-MM-DD
 }
 
 export type SmarthomeDeviceType = 'light' | 'switch' | 'sensor' | 'cover' | 'climate' | 'washer' | 'dishwasher' | 'pc';
@@ -131,26 +126,6 @@ export interface CalDavConfig {
     password?: string;
     color?: string;
     ownerId?: string; // Which user does this belong to?
-}
-
-export interface NextcloudConfig {
-    enabled: boolean;
-    url?: string;
-    username?: string;
-    password?: string;
-}
-
-export interface ImmichConfig {
-    enabled: boolean;
-    url?: string;
-    apiKey?: string;
-}
-
-export interface SystemConfig {
-    haUrl: string;
-    haToken: string;
-    ollamaUrl: string;
-    ollamaModel: string;
 }
 
 export interface Task {
@@ -262,9 +237,8 @@ interface UserSlice {
     users: User[];
     activeUserId: string;
     currentUser: () => User;
-    switchUser: (id: string, skipLock?: boolean) => void;
+    switchUser: (id: string) => void;
     updateUser: (id: string, updates: Partial<User>) => void;
-    updateGridLayouts: (id: string, breakpoint: 'mobile' | 'tablet' | 'desktop', layout: any[]) => void;
     updateUserLayout: (breakpoint: 'mobile' | 'tablet' | 'desktop', order: string[], sizes: Record<string, 'small' | 'medium' | 'large'>) => void;
     updateAiSettings: (settings: Partial<AISettings>) => void; // New Action
     updateThemeConfig: (config: Partial<User['themeConfig']>) => void; // New Action
@@ -273,17 +247,8 @@ interface UserSlice {
     updateUserPin: (userId: string, newPin: string | undefined) => void;
     updatePermissions: (userId: string, permissions: Partial<User['permissions']>) => void;
 
-    // Session Security (Not persisted in local storage)
-    isSessionUnlocked: boolean;
-    unlockSession: (pin: string) => boolean;
-    lockSession: () => void;
-
     // Mail Actions
     updateMailConfig: (userId: string, config: Partial<MailConfig>) => void;
-
-    // Cloud Actions
-    updateNextcloudConfig: (userId: string, config: Partial<NextcloudConfig>) => void;
-    updateImmichConfig: (userId: string, config: Partial<ImmichConfig>) => void;
 
     // Smarthome Actions
     addSmarthomeDevice: (device: Omit<SmarthomeDevice, 'id'>) => void;
@@ -396,13 +361,7 @@ export interface CalendarSlice {
     syncCalDav: () => Promise<void>;
 }
 
-interface SystemSlice {
-    systemConfig: SystemConfig;
-    updateSystemConfig: (updates: Partial<SystemConfig>) => void;
-}
-
-type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice & SystemSlice;
-
+type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice;
 
 // --- Implementations ---
 
@@ -411,26 +370,14 @@ console.log("Store File Loading...");
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) => ({
-    systemConfig: {
-        haUrl: '',
-        haToken: '',
-        ollamaUrl: 'http://localhost:11434',
-        ollamaModel: 'phi3:mini',
-    },
-    updateSystemConfig: (updates) => set((state) => ({
-        systemConfig: { ...state.systemConfig, ...updates }
-    })),
-});
-
-
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
+        { id: 'valentin', name: 'Valentin', avatar: '🍆', color: 'text-indigo-400', colorLabels: { 'rose': 'Urlaub', 'amber': 'Arbeit' }, aiSettings: { enabled: true, proactiveHelp: true, chatEnabled: true, contextAwareness: true, provider: 'local' } },
+        { id: 'leon', name: 'Leon', avatar: '🍑', color: 'text-cyan-400', colorLabels: {}, aiSettings: { enabled: false, proactiveHelp: false, chatEnabled: false, contextAwareness: false, provider: 'local' } },
         { id: 'admin', name: 'Administrator', avatar: '🛡️', color: 'text-rose-500', isHidden: false, pin: '0000' }
     ],
-    activeUserId: 'admin', // Default
+    activeUserId: 'valentin', // Default
     isHydrated: false,
-    isSessionUnlocked: false,
 
     sparkSuggestion: null,
     showSparkBubble: false,
@@ -516,12 +463,9 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
                 console.log('[HA Sync] Local state is up to date.');
             }
             set({ persistenceError: null, isSyncing: false });
-        } catch (e: any) {
-            console.error('[HA Sync] Background sync failed:', e);
-            set({
-                isSyncing: false,
-                persistenceError: `Sync fehlgeschlagen: ${e.message || 'Verbindung zum Server unterbrochen'}`
-            });
+        } catch (e) {
+            console.error('[HA Sync] Background sync failed', e);
+            set({ isSyncing: false });
         }
     },
 
@@ -540,42 +484,10 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
         return state.users.find(u => u.id === state.activeUserId) || state.users[0];
     },
 
-    switchUser: (id, skipLock = false) => {
-        const user = get().users.find(u => u.id === id);
-        if (user && user.pin && !skipLock) {
-            set({ activeUserId: id, isSessionUnlocked: false });
-        } else {
-            set({ activeUserId: id, isSessionUnlocked: true });
-        }
-    },
-
-    unlockSession: (pin) => {
-        const state = get();
-        const user = state.users.find(u => u.id === state.activeUserId);
-        if (!user || !user.pin || user.pin === pin) {
-            set({ isSessionUnlocked: true });
-            return true;
-        }
-        return false;
-    },
-
-    lockSession: () => set({ isSessionUnlocked: false }),
+    switchUser: (id) => set({ activeUserId: id }),
 
     updateUser: (id, updates) => set((state) => ({
         users: state.users.map(u => u.id === id ? { ...u, ...updates } : u)
-    })),
-
-    updateGridLayouts: (id, breakpoint, layout) => set((state) => ({
-        users: state.users.map(u => {
-            if (u.id !== id) return u;
-            return {
-                ...u,
-                gridLayouts: {
-                    ...(u.gridLayouts || { mobile: [], tablet: [], desktop: [] }),
-                    [breakpoint]: layout
-                }
-            };
-        })
     })),
 
     updateUserLayout: (breakpoint, order, sizes) => set((state) => ({
@@ -626,20 +538,6 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
             }
             return u;
         })
-    })),
-
-    updateNextcloudConfig: (userId, config) => set((state) => ({
-        users: state.users.map(u => u.id === userId ? {
-            ...u,
-            nextcloudConfig: { ...u.nextcloudConfig, ...config } as NextcloudConfig
-        } : u)
-    })),
-
-    updateImmichConfig: (userId, config) => set((state) => ({
-        users: state.users.map(u => u.id === userId ? {
-            ...u,
-            immichConfig: { ...u.immichConfig, ...config } as ImmichConfig
-        } : u)
     })),
 
     addSmarthomeDevice: (device) => set((state) => ({
@@ -1049,7 +947,10 @@ export const createCalendarSlice: StateCreator<StoreState, [], [], CalendarSlice
     console.log("Initializing Calendar Slice...");
     return {
         events: [],
-        people: [],
+        people: [
+            { id: 'p1', name: 'Valentin', color: 'indigo' },
+            { id: 'p2', name: 'Leon', color: 'cyan' }
+        ],
 
         addEvent: (event) => set((state) => ({
             events: [...state.events, {
@@ -1332,8 +1233,10 @@ Schreibe EINE kurze, knackige und motivierende Nachricht (max 2 Sätze), die den
 
 export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSlice> = (set) => ({
     workspaceItems: [
-        { id: 'immich-default', name: 'Immich Fotos', icon: 'Image', color: 'rose', type: 'url', value: 'http://192.168.178.78:2283' },
-        { id: 'nextcloud-default', name: 'Nextcloud Cloud', icon: 'Cloud', color: 'blue', type: 'url', value: 'https://cloud.beispiel.de' }
+        { id: 'ws1', name: 'Home Assistant', icon: 'home', color: 'blue', type: 'url', value: 'http://homeassistant.local:8123' },
+        { id: 'ws2', name: 'Musik', icon: 'music', color: 'purple', type: 'url', value: 'https://open.spotify.com' },
+        { id: 'ws3', name: 'Kino Modus', icon: 'film', color: 'rose', type: 'ha_entity', value: 'scene.kino_modus' },
+        { id: 'ws4', name: 'Alles Aus', icon: 'power', color: 'rose', type: 'ha_entity', value: 'script.alles_aus' }
     ],
     addWorkspaceItem: (item) => set((state) => ({
         workspaceItems: [...state.workspaceItems, { ...item, id: generateId() }]
@@ -1400,77 +1303,8 @@ export const createSmartListSlice: StateCreator<StoreState, [], [], SmartListSli
 });
 
 // --- Sync Logic ---
-
-// Helper to safely set persistence error even if store is still initializing
-const safeSetPersistenceError = (error: string | null) => {
-    try {
-        // Double-check existence and types to prevent "is not a function" crashes during boot
-        if (typeof useAppStore !== 'undefined' && useAppStore && typeof useAppStore.getState === 'function') {
-            const state = useAppStore.getState();
-            if (state && typeof state.setPersistenceError === 'function') {
-                state.setPersistenceError(error);
-            }
-        } else {
-            // This is expected during very early initialization
-            if (error) console.warn('[HA Storage] Store not ready yet to receive error:', error);
-        }
-    } catch (e) {
-        // Silently fail to avoid crashing the whole initialization
-        console.error('[HA Storage] Failed to update store error state', e);
-    }
-};
-
-// Custom debounce implementation to avoid lodash ESM/CJS build issues
-function customDebounce<T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
-): (...args: Parameters<T>) => void {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    return function (...args: Parameters<T>) {
-        const later = () => {
-            timeout = null;
-            func(...args);
-        };
-        if (timeout !== null) {
-            clearTimeout(timeout);
-        }
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Debounced actual save function to prevent spamming the HA API
-let lastSavedValue: string | null = null;
-
-const debouncedSaveToHA = customDebounce(async (name: string, value: string) => {
-    // If the data hasn't changed since the last attempt (even if it failed),
-    // don't try again just because 'persistenceError' was updated in the store.
-    if (value === lastSavedValue) {
-        return;
-    }
-
-    try {
-        console.log(`[HA Storage] Executing save to HA for ${name}`);
-        const currentHaState = await haService.getState() || {};
-        const parsedValue = JSON.parse(value);
-
-        // Merge with existing HA state
-        const newState = {
-            ...currentHaState,
-            [name]: parsedValue
-        };
-
-        await haService.saveState(newState);
-        lastSavedValue = value; // Update cache on success
-        console.log(`[HA Storage] Save complete.`);
-        safeSetPersistenceError(null);
-    } catch (e) {
-        console.error(`[HA Storage] Failed to save state to HA`, e);
-        // We set the error, which triggers another persist cycle, 
-        // but our 'value === lastSavedValue' check above will now catch it.
-        lastSavedValue = value; // Mark as "attempted" to break the loop
-        safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
-    }
-}, 2000);
+import { haService } from '../utils/haService';
+import { debounce } from 'lodash';
 
 // Custom Storage Engine for Zustand that uses HA
 const haStorage: StateStorage = {
@@ -1480,7 +1314,7 @@ const haStorage: StateStorage = {
             const data = await haService.getState();
 
             // If we successfully get something (even null), clear previous errors
-            safeSetPersistenceError(null);
+            useAppStore.getState().setPersistenceError(null);
 
             if (data && data[name]) {
                 console.log(`[HA Storage] Found data for ${name}`);
@@ -1490,7 +1324,7 @@ const haStorage: StateStorage = {
             return null;
         } catch (e) {
             console.error(`[HA Storage] Failed to load state from HA`, e);
-            safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Laden von Home Assistant');
+            useAppStore.getState().setPersistenceError(e instanceof Error ? e.message : 'Fehler beim Laden von Home Assistant');
             return null; // Return null to let Zustand use defaults
         }
     },
@@ -1503,13 +1337,35 @@ const haStorage: StateStorage = {
         try {
             console.log(`[HA Storage] Removing ${name} from HA... (Resetting to empty state)`);
             await haService.saveState({ [name]: null }); // Effectively clears it
-            safeSetPersistenceError(null);
+            useAppStore.getState().setPersistenceError(null);
         } catch (e) {
             console.error(`[HA Storage] Failed to remove state from HA`, e);
-            safeSetPersistenceError('Fehler beim Löschen in Home Assistant');
+            useAppStore.getState().setPersistenceError('Fehler beim Löschen in Home Assistant');
         }
     },
 };
+
+// Debounced actual save function to prevent spamming the HA API
+const debouncedSaveToHA = debounce(async (name: string, value: string) => {
+    try {
+        console.log(`[HA Storage] Executing save to HA for ${name}`);
+        const currentHaState = await haService.getState() || {};
+        const parsedValue = JSON.parse(value);
+
+        // Merge with existing HA state in case we store other things there later
+        const newState = {
+            ...currentHaState,
+            [name]: parsedValue
+        };
+
+        await haService.saveState(newState);
+        console.log(`[HA Storage] Save complete.`);
+        useAppStore.getState().setPersistenceError(null); // Clear error on success
+    } catch (e) {
+        console.error(`[HA Storage] Failed to save state to HA`, e);
+        useAppStore.getState().setPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
+    }
+}, 2000);
 
 export const useAppStore = create<StoreState>()(
     persist(
@@ -1520,7 +1376,6 @@ export const useAppStore = create<StoreState>()(
             const habits = createHabitSlice(set, get, api);
             const workspaces = createWorkspaceSlice(set, get, api);
             const smartLists = createSmartListSlice(set, get, api);
-            const system = createSystemSlice(set, get, api);
 
             return {
                 ...user,
@@ -1529,7 +1384,6 @@ export const useAppStore = create<StoreState>()(
                 ...habits,
                 ...workspaces,
                 ...smartLists,
-                ...system,
                 // Hydration happens automatically via persist middleware now
                 isHydrated: false,
                 setHydrated: (state) => set({ isHydrated: state })
@@ -1555,8 +1409,7 @@ export const useAppStore = create<StoreState>()(
                 people: state.people,
                 habits: state.habits,
                 workspaceItems: state.workspaceItems,
-                recipeProfiles: state.recipeProfiles, // Persist learning data!
-                systemConfig: state.systemConfig
+                recipeProfiles: state.recipeProfiles // Persist learning data!
             }),
         }
     )

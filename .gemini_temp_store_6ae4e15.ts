@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import { haService } from '../utils/haService';
 
 
 // --- Types ---
@@ -262,7 +261,7 @@ interface UserSlice {
     users: User[];
     activeUserId: string;
     currentUser: () => User;
-    switchUser: (id: string, skipLock?: boolean) => void;
+    switchUser: (id: string) => void;
     updateUser: (id: string, updates: Partial<User>) => void;
     updateGridLayouts: (id: string, breakpoint: 'mobile' | 'tablet' | 'desktop', layout: any[]) => void;
     updateUserLayout: (breakpoint: 'mobile' | 'tablet' | 'desktop', order: string[], sizes: Record<string, 'small' | 'medium' | 'large'>) => void;
@@ -403,7 +402,6 @@ interface SystemSlice {
 
 type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice & SystemSlice;
 
-
 // --- Implementations ---
 
 // Debug Logger
@@ -422,7 +420,6 @@ const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) =
         systemConfig: { ...state.systemConfig, ...updates }
     })),
 });
-
 
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
@@ -516,12 +513,9 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
                 console.log('[HA Sync] Local state is up to date.');
             }
             set({ persistenceError: null, isSyncing: false });
-        } catch (e: any) {
-            console.error('[HA Sync] Background sync failed:', e);
-            set({
-                isSyncing: false,
-                persistenceError: `Sync fehlgeschlagen: ${e.message || 'Verbindung zum Server unterbrochen'}`
-            });
+        } catch (e) {
+            console.error('[HA Sync] Background sync failed', e);
+            set({ isSyncing: false });
         }
     },
 
@@ -540,9 +534,9 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
         return state.users.find(u => u.id === state.activeUserId) || state.users[0];
     },
 
-    switchUser: (id, skipLock = false) => {
+    switchUser: (id) => {
         const user = get().users.find(u => u.id === id);
-        if (user && user.pin && !skipLock) {
+        if (user && user.pin) {
             set({ activeUserId: id, isSessionUnlocked: false });
         } else {
             set({ activeUserId: id, isSessionUnlocked: true });
@@ -1331,10 +1325,7 @@ Schreibe EINE kurze, knackige und motivierende Nachricht (max 2 Sätze), die den
 });
 
 export const createWorkspaceSlice: StateCreator<StoreState, [], [], WorkspaceSlice> = (set) => ({
-    workspaceItems: [
-        { id: 'immich-default', name: 'Immich Fotos', icon: 'Image', color: 'rose', type: 'url', value: 'http://192.168.178.78:2283' },
-        { id: 'nextcloud-default', name: 'Nextcloud Cloud', icon: 'Cloud', color: 'blue', type: 'url', value: 'https://cloud.beispiel.de' }
-    ],
+    workspaceItems: [],
     addWorkspaceItem: (item) => set((state) => ({
         workspaceItems: [...state.workspaceItems, { ...item, id: generateId() }]
     })),
@@ -1400,77 +1391,23 @@ export const createSmartListSlice: StateCreator<StoreState, [], [], SmartListSli
 });
 
 // --- Sync Logic ---
+import { haService } from '../utils/haService';
+import { debounce } from 'lodash';
 
 // Helper to safely set persistence error even if store is still initializing
 const safeSetPersistenceError = (error: string | null) => {
     try {
-        // Double-check existence and types to prevent "is not a function" crashes during boot
-        if (typeof useAppStore !== 'undefined' && useAppStore && typeof useAppStore.getState === 'function') {
-            const state = useAppStore.getState();
-            if (state && typeof state.setPersistenceError === 'function') {
-                state.setPersistenceError(error);
-            }
+        // Late-bound check: only call if useAppStore is defined and initialized
+        if (typeof useAppStore !== 'undefined' && useAppStore.getState) {
+            useAppStore.getState().setPersistenceError(error);
         } else {
-            // This is expected during very early initialization
-            if (error) console.warn('[HA Storage] Store not ready yet to receive error:', error);
+            console.warn('[HA Storage] Store not ready yet to receive error:', error);
         }
     } catch (e) {
         // Silently fail to avoid crashing the whole initialization
         console.error('[HA Storage] Failed to update store error state', e);
     }
 };
-
-// Custom debounce implementation to avoid lodash ESM/CJS build issues
-function customDebounce<T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
-): (...args: Parameters<T>) => void {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    return function (...args: Parameters<T>) {
-        const later = () => {
-            timeout = null;
-            func(...args);
-        };
-        if (timeout !== null) {
-            clearTimeout(timeout);
-        }
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Debounced actual save function to prevent spamming the HA API
-let lastSavedValue: string | null = null;
-
-const debouncedSaveToHA = customDebounce(async (name: string, value: string) => {
-    // If the data hasn't changed since the last attempt (even if it failed),
-    // don't try again just because 'persistenceError' was updated in the store.
-    if (value === lastSavedValue) {
-        return;
-    }
-
-    try {
-        console.log(`[HA Storage] Executing save to HA for ${name}`);
-        const currentHaState = await haService.getState() || {};
-        const parsedValue = JSON.parse(value);
-
-        // Merge with existing HA state
-        const newState = {
-            ...currentHaState,
-            [name]: parsedValue
-        };
-
-        await haService.saveState(newState);
-        lastSavedValue = value; // Update cache on success
-        console.log(`[HA Storage] Save complete.`);
-        safeSetPersistenceError(null);
-    } catch (e) {
-        console.error(`[HA Storage] Failed to save state to HA`, e);
-        // We set the error, which triggers another persist cycle, 
-        // but our 'value === lastSavedValue' check above will now catch it.
-        lastSavedValue = value; // Mark as "attempted" to break the loop
-        safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
-    }
-}, 2000);
 
 // Custom Storage Engine for Zustand that uses HA
 const haStorage: StateStorage = {
@@ -1510,6 +1447,40 @@ const haStorage: StateStorage = {
         }
     },
 };
+
+// Debounced actual save function to prevent spamming the HA API
+let lastSavedValue: string | null = null;
+
+const debouncedSaveToHA = debounce(async (name: string, value: string) => {
+    // If the data hasn't changed since the last attempt (even if it failed),
+    // don't try again just because 'persistenceError' was updated in the store.
+    if (value === lastSavedValue) {
+        return;
+    }
+
+    try {
+        console.log(`[HA Storage] Executing save to HA for ${name}`);
+        const currentHaState = await haService.getState() || {};
+        const parsedValue = JSON.parse(value);
+
+        // Merge with existing HA state
+        const newState = {
+            ...currentHaState,
+            [name]: parsedValue
+        };
+
+        await haService.saveState(newState);
+        lastSavedValue = value; // Update cache on success
+        console.log(`[HA Storage] Save complete.`);
+        safeSetPersistenceError(null);
+    } catch (e) {
+        console.error(`[HA Storage] Failed to save state to HA`, e);
+        // We set the error, which triggers another persist cycle, 
+        // but our 'value === lastSavedValue' check above will now catch it.
+        lastSavedValue = value; // Mark as "attempted" to break the loop
+        safeSetPersistenceError(e instanceof Error ? e.message : 'Fehler beim Speichern in Home Assistant');
+    }
+}, 2000);
 
 export const useAppStore = create<StoreState>()(
     persist(

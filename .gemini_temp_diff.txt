@@ -1,0 +1,83 @@
+commit 6ae4e15c21a54bb0e6c93cd5c020d793bd1d7101
+Author: LeonPark-gif <lgregarek@gmail.com>
+Date:   Tue Mar 10 13:19:27 2026 +0100
+
+    feat: migrate sensitive config to Admin Panel for dynamic management
+
+diff --git a/src/store/useAppStore.ts b/src/store/useAppStore.ts
+index f0805e4..a48ebbc 100644
+--- a/src/store/useAppStore.ts
++++ b/src/store/useAppStore.ts
+@@ -145,6 +145,13 @@ export interface ImmichConfig {
+     apiKey?: string;
+ }
+ 
++export interface SystemConfig {
++    haUrl: string;
++    haToken: string;
++    ollamaUrl: string;
++    ollamaModel: string;
++}
++
+ export interface Task {
+     id: string;
+     text: string;
+@@ -388,7 +395,12 @@ export interface CalendarSlice {
+     syncCalDav: () => Promise<void>;
+ }
+ 
+-type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice;
++interface SystemSlice {
++    systemConfig: SystemConfig;
++    updateSystemConfig: (updates: Partial<SystemConfig>) => void;
++}
++
++type StoreState = UserSlice & ChaosSlice & CalendarSlice & HabitSlice & WorkspaceSlice & SmartListSlice & SystemSlice;
+ 
+ // --- Implementations ---
+ 
+@@ -397,6 +409,18 @@ console.log("Store File Loading...");
+ 
+ const generateId = () => Math.random().toString(36).substring(2, 9);
+ 
++const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) => ({
++    systemConfig: {
++        haUrl: '',
++        haToken: '',
++        ollamaUrl: 'http://localhost:11434',
++        ollamaModel: 'phi3:mini',
++    },
++    updateSystemConfig: (updates) => set((state) => ({
++        systemConfig: { ...state.systemConfig, ...updates }
++    })),
++});
++
+ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
+     users: [
+         { id: 'admin', name: 'Administrator', avatar: '🛡️', color: 'text-rose-500', isHidden: false, pin: '0000' }
+@@ -1467,6 +1491,7 @@ export const useAppStore = create<StoreState>()(
+             const habits = createHabitSlice(set, get, api);
+             const workspaces = createWorkspaceSlice(set, get, api);
+             const smartLists = createSmartListSlice(set, get, api);
++            const system = createSystemSlice(set, get, api);
+ 
+             return {
+                 ...user,
+@@ -1475,6 +1500,7 @@ export const useAppStore = create<StoreState>()(
+                 ...habits,
+                 ...workspaces,
+                 ...smartLists,
++                ...system,
+                 // Hydration happens automatically via persist middleware now
+                 isHydrated: false,
+                 setHydrated: (state) => set({ isHydrated: state })
+@@ -1500,7 +1526,8 @@ export const useAppStore = create<StoreState>()(
+                 people: state.people,
+                 habits: state.habits,
+                 workspaceItems: state.workspaceItems,
+-                recipeProfiles: state.recipeProfiles // Persist learning data!
++                recipeProfiles: state.recipeProfiles, // Persist learning data!
++                systemConfig: state.systemConfig
+             }),
+         }
+     )
