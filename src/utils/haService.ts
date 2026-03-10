@@ -13,20 +13,23 @@ export class HAService {
         this.updateConfig(initialUrl, initialToken);
     }
 
-    public updateConfig(newUrl: string, newToken: string) {
-        // In dev mode, we usually proxy or use a fixed URL, 
-        // but if a new URL is provided, we should respect it.
-        this.url = newUrl;
+    public updateConfig(newUrl: any, newToken: any) {
+        // Ensure we always have strings and handle undefined/null safely
+        const safeUrl = typeof newUrl === 'string' ? newUrl.trim() : '';
+        const safeToken = typeof newToken === 'string' ? newToken.trim() : '';
 
+        if (this.url === safeUrl && this.token === safeToken) return;
+
+        this.url = safeUrl;
         // Remove trailing slash if present
         if (this.url.endsWith('/')) {
             this.url = this.url.slice(0, -1);
         }
 
-        this.token = newToken;
+        this.token = safeToken;
 
         if (this.url && this.token) {
-            console.log(`[HAService] Configuration updated: ${this.url}`);
+            console.log(`[HAService] Configuration active: ${this.url}`);
 
             // --- Localhost Mismatch Check ---
             const isLocalHostUrl = this.url.includes('localhost') || this.url.includes('127.0.0.1');
@@ -34,10 +37,13 @@ export class HAService {
 
             if (isLocalHostUrl && !isPageLocal) {
                 console.warn(
-                    `[HAService] MISMATCH: You are accessing Life OS via ${window.location.hostname}, ` +
-                    `but your HA URL is 'localhost'. Please use the server's real IP.`
+                    `[HAService] MISMATCH DETECTED: You are accessing Life OS via ${window.location.hostname}, ` +
+                    `but your HA URL is set to 'localhost'. The browser cannot reach HA this way. ` +
+                    `Please update your configuration in the Admin Panel.`
                 );
             }
+        } else {
+            console.log(`[HAService] Configuration pending (URL or Token missing).`);
         }
     }
 

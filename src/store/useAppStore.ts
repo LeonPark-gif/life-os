@@ -3,7 +3,7 @@ import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
 import { haService } from '../utils/haService';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 
 
 // --- Types ---
@@ -1397,11 +1397,15 @@ export const createSmartListSlice: StateCreator<StoreState, [], [], SmartListSli
 // Helper to safely set persistence error even if store is still initializing
 const safeSetPersistenceError = (error: string | null) => {
     try {
-        // Late-bound check: only call if useAppStore is defined and initialized
-        if (typeof useAppStore !== 'undefined' && useAppStore.getState) {
-            useAppStore.getState().setPersistenceError(error);
+        // Double-check existence and types to prevent "is not a function" crashes during boot
+        if (typeof useAppStore !== 'undefined' && useAppStore && typeof useAppStore.getState === 'function') {
+            const state = useAppStore.getState();
+            if (state && typeof state.setPersistenceError === 'function') {
+                state.setPersistenceError(error);
+            }
         } else {
-            console.warn('[HA Storage] Store not ready yet to receive error:', error);
+            // This is expected during very early initialization
+            if (error) console.warn('[HA Storage] Store not ready yet to receive error:', error);
         }
     } catch (e) {
         // Silently fail to avoid crashing the whole initialization
