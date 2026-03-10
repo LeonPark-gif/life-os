@@ -145,12 +145,13 @@ app.post('/api/ha/proxy', async (req, res) => {
 // DAILY BRIEFING ROUTE (OLLAMA)
 // ─────────────────────────────────────────────
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.178.78:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3'; // Default model
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'phi3:mini'; // Match frontend default
 
 app.post('/api/briefing', async (req, res) => {
     try {
-        const { date, calendarEvents, tasks, habits, ollamaUrl } = req.body;
+        const { date, calendarEvents, tasks, habits, ollamaUrl, model } = req.body;
         const TARGET_OLLAMA_URL = ollamaUrl || OLLAMA_URL;
+        const TARGET_MODEL = model || OLLAMA_MODEL;
 
         let prompt = `Du bist MACS, der sarkastische und humorvolle Desk-Buddy des Nutzers. 
 Generiere ein kurzes "Daily Briefing" für heute (${date}).
@@ -163,20 +164,22 @@ Hier sind die Daten für heute:
 - Gewohnheiten: ${JSON.stringify(habits)}
 `;
 
-        console.log(`[Briefing] Requesting briefing from Ollama at ${TARGET_OLLAMA_URL}...`);
+        console.log(`[Briefing] Requesting briefing from Ollama at ${TARGET_OLLAMA_URL} with model ${TARGET_MODEL}...`);
 
         const ollamaRes = await fetch(`${TARGET_OLLAMA_URL}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: OLLAMA_MODEL,
+                model: TARGET_MODEL,
                 prompt: prompt,
                 stream: false
             })
         });
 
         if (!ollamaRes.ok) {
-            throw new Error(`Ollama API error: ${ollamaRes.status} ${ollamaRes.statusText}`);
+            const errBody = await ollamaRes.text();
+            console.error(`[Briefing] Ollama error (${ollamaRes.status}):`, errBody);
+            throw new Error(`Ollama API error: ${ollamaRes.status} ${errBody.substring(0, 50)}`);
         }
 
         const data = await ollamaRes.json();
@@ -188,7 +191,8 @@ Hier sind die Daten für heute:
         console.error('[Briefing] Error generating briefing:', e.message);
         res.json({
             success: true,
-            briefing: "MACS ist offline. Die KI-Verbindung zu Ollama ist abgebrochen. Du musst deinen Tag heute wohl selbst organisieren."
+            error_detail: e.message,
+            briefing: `MACS ist offline (Fehler: ${e.message}). Die KI-Verbindung zu Ollama (${OLLAMA_URL}) ist abgebrochen.`
         });
     }
 });
