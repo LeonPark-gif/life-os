@@ -41,18 +41,21 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
                     body: JSON.stringify({
                         date: todayStr,
                         ollamaUrl: systemConfig.ollamaUrl,
+                        model: systemConfig.ollamaModel,
                         calendarEvents: todaysEvents.map(e => ({ title: e.title, time: e.time })),
                         tasks: allTasks.map(t => t.text).slice(0, 5), // top 5 tasks
                         habits: todaysHabits.map(h => ({ name: h.name, completionsTotal: Object.keys(h.completedDates || {}).length }))
                     })
                 });
 
-                if (!res.ok) throw new Error('API Error');
                 const data = await res.json();
+                if (!res.ok || data.error_detail) {
+                    console.error("Briefing API Error:", data.error_detail);
+                }
                 setBriefing(data.briefing || 'Kein Briefing erhalten.');
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Briefing failed", e);
-                setBriefing("Ich konnte keine Verbindung zu meiner Wissensdatenbank herstellen. Du bist auf dich allein gestellt, Boss.");
+                setBriefing(`MACS ist offline. Verbindung zu Ollama fehlgeschlagen: ${e.message}`);
             } finally {
                 setIsLoading(false);
             }
