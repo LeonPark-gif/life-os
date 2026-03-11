@@ -426,7 +426,22 @@ const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) =
 
 const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) => ({
     users: [
-        { id: 'admin', name: 'Administrator', avatar: '🛡️', color: 'text-rose-500', isHidden: false, pin: '0000' }
+        { 
+            id: 'admin', 
+            name: 'Administrator', 
+            avatar: '🛡️', 
+            color: 'text-rose-500', 
+            isHidden: false, 
+            pin: '0000',
+            aiSettings: {
+                enabled: true,
+                proactiveHelp: true,
+                chatEnabled: true,
+                contextAwareness: true,
+                provider: 'local',
+                geminiModel: 'phi3:mini'
+            }
+        }
     ],
     activeUserId: 'admin', // Default
     isHydrated: false,
@@ -537,7 +552,20 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
 
     currentUser: () => {
         const state = get();
-        return state.users.find(u => u.id === state.activeUserId) || state.users[0];
+        const user = state.users.find(u => u.id === state.activeUserId) || state.users[0];
+        
+        // Ensure aiSettings exist for backward compatibility with existing users
+        if (!user.aiSettings) {
+             user.aiSettings = {
+                enabled: true,
+                proactiveHelp: true,
+                chatEnabled: true,
+                contextAwareness: true,
+                provider: 'local',
+                geminiModel: 'phi3:mini'
+            };
+        }
+        return user;
     },
 
     switchUser: (id, skipLock = false) => {

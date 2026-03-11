@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { ShieldAlert, Plus, Trash2, User as UserIcon, Settings, Server, Mail, Save, Database, Download, RefreshCw, CheckCircle, AlertCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { ShieldAlert, Plus, Trash2, User as UserIcon, Settings, Server, Mail, Save, Database, Download, RefreshCw, CheckCircle, AlertCircle, Calendar as CalendarIcon, Bot, Sparkles } from 'lucide-react';
 import { getAddonUrl } from '../utils/mailBridgeUrl';
 import { haService } from '../utils/haService';
 
@@ -168,6 +168,7 @@ export default function AdminPanel() {
                     { id: 'profile', icon: <UserIcon size={14} />, label: 'Profil' },
                     { id: 'users', icon: <UserIcon size={14} />, label: 'Nutzer' },
                     { id: 'system', icon: <Server size={14} />, label: 'System' },
+                    { id: 'ai', icon: <Bot size={14} />, label: 'KI/AI' },
                     { id: 'mail', icon: <Mail size={14} />, label: 'Mail' },
                     { id: 'cloud', icon: <Database size={14} />, label: 'Cloud' },
                     { id: 'calendar', icon: <CalendarIcon size={14} />, label: 'Kalender' },
@@ -783,6 +784,72 @@ export default function AdminPanel() {
                         </div>
                     )
                 }
+
+                {activeTab === 'ai' && (
+                    <div className="space-y-6 animate-in fade-in duration-300">
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
+                            <h4 className="text-sm font-bold text-fuchsia-400 flex items-center gap-2">
+                                <Bot size={16} /> KI Einstellungen (Nutzer: {activeUser.name})
+                            </h4>
+                            <p className="text-xs text-gray-400 leading-relaxed mb-4">
+                                Personalisiere, wie intelligent und proaktiv dein Life OS mitspielen soll.
+                            </p>
+
+                            <div className="space-y-4 border-b border-white/10 pb-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-bold text-white">KI-Funktionen Generell</div>
+                                        <div className="text-xs text-gray-500">Aktiviert die globale KI in deinem Account</div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={activeUser.aiSettings?.enabled ?? true}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ enabled: e.target.checked })} className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-500"></div>
+                                    </label>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-bold text-white flex gap-2 items-center"><Sparkles size={14} className="text-amber-400"/> Proaktive Hilfe (Sparks)</div>
+                                        <div className="text-xs text-gray-500">Die KI schlägt dir Dinge vor (zB. Einkaufsliste aus Rezept)</div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked={activeUser.aiSettings?.proactiveHelp ?? true}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ proactiveHelp: e.target.checked })} className="sr-only peer" />
+                                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">KI-Provider (Für Cloud-LLMs)</label>
+                                    <select
+                                        value={activeUser.aiSettings?.provider || 'local'}
+                                        onChange={(e) => useAppStore.getState().updateAiSettings({ provider: e.target.value as any })}
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-500/50"
+                                    >
+                                        <option value="local">Lokal (Ollama) - Höchster Datenschutz</option>
+                                        <option value="gemini">Google Gemini AI</option>
+                                        <option value="openai">OpenAI (ChatGPT)</option>
+                                    </select>
+                                </div>
+
+                                {activeUser.aiSettings?.provider === 'gemini' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Gemini API Key</label>
+                                        <input
+                                            type="password"
+                                            value={activeUser.aiSettings?.geminiApiKey || ''}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ geminiApiKey: e.target.value })}
+                                            placeholder="AIzaSy..."
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-500/50 block w-full"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
 
                 {activeTab === 'connections' && (
