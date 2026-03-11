@@ -13,8 +13,8 @@ export function getMailBridgeUrl(configuredUrl?: string): string {
         return `${window.location.origin}/api/hassio_ingress/life_os`;
     }
 
-    // All other environments: use explicit config or the default local port
-    return configuredUrl || 'http://homeassistant.local:8099';
+    // All other environments: use explicit config or the current page origin
+    return configuredUrl || window.location.origin;
 }
 
 /**

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Mic, Coffee, Loader2, Sparkles } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { format } from 'date-fns';
+import { ollamaService } from '../utils/ollamaService';
 
 interface BriefingOverlayProps {
     onClose: () => void;
@@ -22,7 +23,6 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
                 setIsLoading(true);
                 const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-                // Gather data
                 const todaysEvents = events.filter(e => {
                     try {
                         return format(new Date(e.date), 'yyyy-MM-dd') === todayStr;
@@ -31,28 +31,16 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
                     }
                 });
                 const allTasks = lists.flatMap(l => l.tasks).filter(t => !t.completed);
-                const todaysHabits = habits;
+                const contextData = {
+                    weather: "Wetterdaten per HA",
+                    tasks: `${allTasks.slice(0, 5).map(t => t.text).join(', ')}`,
+                    events: `${todaysEvents.map(e => e.title).join(', ')}`,
+                    habits: `${habits.map((h: any) => h.name).join(', ')}`
+                };
 
-                const systemConfig = useAppStore.getState().systemConfig;
+                const briefingText = await ollamaService.generateBriefing("Tagesbriefing", contextData);
+                setBriefing(briefingText);
 
-                const res = await fetch('/api/briefing', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        date: todayStr,
-                        ollamaUrl: systemConfig.ollamaUrl,
-                        model: systemConfig.ollamaModel,
-                        calendarEvents: todaysEvents.map(e => ({ title: e.title, time: e.time })),
-                        tasks: allTasks.map(t => t.text).slice(0, 5), // top 5 tasks
-                        habits: todaysHabits.map(h => ({ name: h.name, completionsTotal: Object.keys(h.completedDates || {}).length }))
-                    })
-                });
-
-                const data = await res.json();
-                if (!res.ok || data.error_detail) {
-                    console.error("Briefing API Error:", data.error_detail);
-                }
-                setBriefing(data.briefing || 'Kein Briefing erhalten.');
             } catch (e: any) {
                 console.error("Briefing failed", e);
                 setBriefing(`MACS ist offline. Verbindung zu Ollama fehlgeschlagen: ${e.message}`);

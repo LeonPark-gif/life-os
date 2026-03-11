@@ -95,13 +95,16 @@ export default function MissionControl() {
 
     const user = currentUser();
     const permissions = user?.permissions;
+    const allowedZonesJson = JSON.stringify(permissions?.allowedZones || []);
+    const rawDevicesJson = JSON.stringify(user?.smarthomeDevices || []);
 
     const smarthomeDevices = useMemo(() => {
-        const devices = user?.smarthomeDevices || [];
+        const devices = JSON.parse(rawDevicesJson);
+        const allowedZones = JSON.parse(allowedZonesJson);
         // Default allow if no permissions exist or 'all' is explicitly listed
-        if (!permissions?.allowedZones || permissions.allowedZones.length === 0 || permissions.allowedZones.includes('all')) return devices;
-        return devices.filter(d => d.zone && permissions.allowedZones.includes(d.zone));
-    }, [user, permissions]);
+        if (!allowedZones || allowedZones.length === 0 || allowedZones.includes('all')) return devices;
+        return devices.filter((d: any) => d.zone && allowedZones.includes(d.zone));
+    }, [rawDevicesJson, allowedZonesJson]);
 
     // Derived Data
     const activeList = useMemo(() => {
@@ -288,7 +291,7 @@ export default function MissionControl() {
         fetchWeather();
         const interval = setInterval(fetchWeather, 15 * 60 * 1000); // Check every 15 minutes
         return () => clearInterval(interval);
-    }, [user.weatherEntityId]);
+    }, [user?.weatherEntityId]);
 
     const hours = time.getHours();
     const isNight = hours < 6 || hours > 20;

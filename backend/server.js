@@ -301,10 +301,11 @@ app.post('/api/nextcloud/read', async (req, res) => {
 app.post('/api/photos/on-this-day', async (req, res) => {
     try {
         const { imUrl, imApiKey } = req.body || {};
-        const finalKey = imApiKey || IMMICH_API_KEY;
-        const finalUrl = imUrl || IMMICH_URL;
+        const finalKey = imApiKey || process.env.IMMICH_API_KEY;
+        const finalUrl = imUrl || process.env.IMMICH_URL;
 
         if (!finalKey || !finalUrl) {
+            console.log('[Photos] Immich config missing (URL or Key).');
             return res.json({ success: true, photos: [] });
         }
 
@@ -312,8 +313,8 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         const month = now.getMonth() + 1;
         const day = now.getDate();
 
-        // Search for assets on this day across all years
-        // We use metadata search to find assets taken on this specific day/month
+        console.log(`[Photos] Fetching memories for ${day}.${month} from ${finalUrl}`);
+
         const searchRes = await fetch(`${finalUrl}/api/search/metadata`, {
             method: 'POST',
             headers: {
@@ -331,7 +332,8 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         if (!searchRes.ok) {
             const errText = await searchRes.text();
             console.error('[Photos] Immich error response:', errText);
-            throw new Error(`Immich API error: ${searchRes.status} ${errText.substring(0, 100)}`);
+            // Don't 500 the whole dashboard, just return empty and log
+            return res.json({ success: true, photos: [], error: `Immich API error: ${searchRes.status}` });
         }
 
         const assets = await searchRes.json();
@@ -340,17 +342,13 @@ app.post('/api/photos/on-this-day', async (req, res) => {
         const transformed = (assets || []).map(asset => ({
             id: asset.id,
             url: `${finalUrl}/api/assets/${asset.id}/thumbnail?size=thumbnail`,
-            originalDate: asset.fileCreatedAt || asset.dateTimeOriginal
+            date: asset.fileCreatedAt || asset.dateTimeOriginal
         }));
 
         res.json({ success: true, photos: transformed });
     } catch (e) {
-        console.error('[Photos] Search error details:', {
-            message: e.message,
-            stack: e.stack,
-            url: IMMICH_URL
-        });
-        res.status(500).json({ success: false, error: `Immich Fehler: ${e.message}` });
+        console.error('[Photos] Search error details:', e.message);
+        res.json({ success: true, photos: [], error: e.message });
     }
 });
 

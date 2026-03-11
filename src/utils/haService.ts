@@ -7,8 +7,11 @@ export class HAService {
         const winEnv = (window as any).ENV;
         const viteEnv = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}) as any;
 
-        const initialUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || '';
-        const initialToken = winEnv?.VITE_HA_TOKEN || viteEnv.VITE_HA_TOKEN || '';
+        const localUrl = localStorage.getItem('life-os-ha-url') || '';
+        const localToken = localStorage.getItem('life-os-ha-token') || '';
+
+        const initialUrl = winEnv?.VITE_HA_URL || viteEnv.VITE_HA_URL || localUrl;
+        const initialToken = winEnv?.VITE_HA_TOKEN || viteEnv.VITE_HA_TOKEN || localToken;
 
         this.updateConfig(initialUrl, initialToken);
     }
@@ -27,6 +30,10 @@ export class HAService {
         }
 
         this.token = safeToken;
+
+        // Persist to local storage to survive reloads before store hydration
+        if (this.url) localStorage.setItem('life-os-ha-url', this.url);
+        if (this.token) localStorage.setItem('life-os-ha-token', this.token);
 
         if (this.url && this.token) {
             console.log(`[HAService] Configuration active: ${this.url}`);

@@ -413,8 +413,8 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) => ({
     systemConfig: {
-        haUrl: '',
-        haToken: '',
+        haUrl: localStorage.getItem('life-os-ha-url') || '',
+        haToken: localStorage.getItem('life-os-ha-token') || '',
         ollamaUrl: 'http://192.168.178.78:11434',
         ollamaModel: 'phi3:mini',
     },

@@ -6,7 +6,7 @@ import AdminPanel from './components/AdminPanel';
 import TasksModule from './components/TasksModule';
 import HabitsModule from './components/HabitsModule';
 import WorkspacesModule from './components/WorkspacesModule';
-import { Camera, X, Settings as SettingsIcon, FileUp, Sparkles, Cpu, Calendar, Speaker } from 'lucide-react';
+import { Camera, X, Settings as SettingsIcon, FileUp, Sparkles, Cpu, Calendar, Speaker, Server, CheckCircle } from 'lucide-react';
 import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
 import { useAppStore } from './store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,12 +43,71 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const icsInputRef = useRef<HTMLInputElement>(null);
 
+  const [showSetup, setShowSetup] = useState(false);
+  const [isAttemptingAutoConfig, setIsAttemptingAutoConfig] = useState(() => !localStorage.getItem('life-os-ha-url'));
+  const [setupUrl, setSetupUrl] = useState('');
+  const [setupToken, setSetupToken] = useState('');
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState('');
+
   const systemConfig = useAppStore(state => state.systemConfig);
 
   // Configuration Sync Effect
   useEffect(() => {
     haService.updateConfig(systemConfig.haUrl, systemConfig.haToken);
   }, [systemConfig.haUrl, systemConfig.haToken]);
+
+  // Zero-Config Auto-Load Effect (For New Devices)
+  useEffect(() => {
+    if (!isAttemptingAutoConfig) return;
+
+    let isMounted = true;
+    const tryAutoConfig = async () => {
+      try {
+        console.log('[Setup] Attempting auto-discover configuration from Add-on backend...');
+        const { getAddonUrl } = await import('./utils/mailBridgeUrl');
+        // Small delay to ensure any network readiness inside HA Ingress
+        await new Promise(r => setTimeout(r, 500));
+        
+        const addonUrl = getAddonUrl();
+        // The frontend proxies '/api/state' in local dev, and in HA Ingress the addon serves it directly.
+        const res = await fetch(`${addonUrl}/api/state`);
+        
+        if (res.ok) {
+           const { data } = await res.json();
+           if (data && data.systemConfig && data.systemConfig.haUrl && data.systemConfig.haToken) {
+              console.log('[Setup] Found backend state! Auto-configuring device.');
+              const { haUrl, haToken } = data.systemConfig;
+              
+              localStorage.setItem('life-os-ha-url', haUrl);
+              localStorage.setItem('life-os-ha-token', haToken);
+              haService.updateConfig(haUrl, haToken);
+              
+              if (data.users) {
+                useAppStore.getState().importState(data);
+              } else {
+                useAppStore.getState().updateSystemConfig({ haUrl, haToken });
+              }
+              
+              if (isMounted) setIsAttemptingAutoConfig(false);
+              return; // Success, bypass manual setup
+           }
+        }
+      } catch (e) {
+        console.log('[Setup] Auto-discover failed or backend unreachable (e.g. standalone mode). Falling back to manual setup.');
+      }
+      
+      // If we reach here, auto-config failed
+      if (isMounted) {
+        setShowSetup(true);
+        setIsAttemptingAutoConfig(false);
+      }
+    };
+
+    tryAutoConfig();
+
+    return () => { isMounted = false; };
+  }, [isAttemptingAutoConfig]);
 
   // Background Sync Effect
   useEffect(() => {
@@ -220,7 +279,7 @@ export default function App() {
   }, [latestMqttEvent]);
 
   // 2. Hydration Guard (After all hooks)
-  if (!isHydrated) {
+  if (!isHydrated || isAttemptingAutoConfig) {
     return (
       <div className="w-full h-screen bg-gray-950 flex flex-col items-center justify-center space-y-4">
         <StatusLedEngine />
@@ -228,7 +287,77 @@ export default function App() {
           <Sparkles size={48} />
         </div>
         <div className="text-gray-500 font-mono text-xs uppercase tracking-[0.2em]">
-          DaSilva OS wird geladen...
+          {isAttemptingAutoConfig ? 'Suche Life OS Add-on...' : 'DaSilva OS wird geladen...'}
+        </div>
+      </div>
+    );
+  }
+
+  // 2.5 Setup Wizard Guard (For New Devices)
+  if (showSetup) {
+    const handleSetupSubmit = async () => {
+      setSetupError('');
+      setSetupLoading(true);
+      try {
+        const url = setupUrl.trim().replace(/\/$/, '');
+        const token = setupToken.trim();
+        if (!url || !token) throw new Error('Bitte URL und Token eingeben.');
+
+        localStorage.setItem('life-os-ha-url', url);
+        localStorage.setItem('life-os-ha-token', token);
+        haService.updateConfig(url, token);
+
+        const currentHaState = await haService.getState();
+        if (currentHaState && currentHaState.users) {
+          useAppStore.getState().importState(currentHaState);
+          console.log('[Setup] Erfolgreich Daten geladen:', currentHaState);
+        } else {
+          useAppStore.getState().updateSystemConfig({ haUrl: url, haToken: token });
+          console.log('[Setup] Keine alten Daten gefunden, starte frisches Profil.');
+        }
+        setShowSetup(false);
+      } catch (e: any) {
+        setSetupError(e.message || 'Verbindung fehlgeschlagen');
+      } finally {
+        setSetupLoading(false);
+      }
+    };
+
+    return (
+      <div className="w-full h-screen bg-[#0f1115] flex flex-col items-center justify-center p-4">
+        <StatusLedEngine />
+        <div className="relative z-10 bg-black/80 border border-emerald-500/30 p-8 rounded-3xl max-w-md w-full shadow-2xl backdrop-blur-xl">
+          <div className="flex justify-center mb-6">
+            <div className="p-4 bg-emerald-500/20 rounded-full text-emerald-400">
+              <Server size={32} />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-center text-white mb-2">Willkommen bei Life OS</h2>
+          <p className="text-sm text-center text-gray-400 mb-8 leading-relaxed">
+            Neues Gerät erkannt! Bitte verbinde dich mit deinem Home Assistant, um deine Daten zu laden oder ein neues Profil zu erstellen.
+          </p>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">HA Server URL</label>
+              <input type="text" value={setupUrl} onChange={e => setSetupUrl(e.target.value)} placeholder="https://homeassistant.local:8123" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Langfristiger Zugangs-Token</label>
+              <input type="password" value={setupToken} onChange={e => setSetupToken(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500" />
+            </div>
+            
+            {setupError && (
+              <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 text-center">
+                {setupError}
+              </div>
+            )}
+            
+            <button onClick={handleSetupSubmit} disabled={setupLoading} className="w-full mt-4 py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-colors flex justify-center items-center gap-2">
+              {setupLoading ? <span className="animate-spin">🌀</span> : <CheckCircle size={18} />}
+              {setupLoading ? 'Verbinde...' : 'Verbinden & Laden'}
+            </button>
+          </div>
         </div>
       </div>
     );

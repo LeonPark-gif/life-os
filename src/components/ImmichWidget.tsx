@@ -94,7 +94,6 @@ export default function ImmichWidget() {
                             className="flex-shrink-0 w-48 h-full rounded-2xl overflow-hidden relative shadow-lg"
                         >
                             <img src={photo.url} alt="Memory" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
-                            <img src={photo.url} alt="Memory" className="w-full h-full object-cover hover:scale-110 transition-transform duration-700" />
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-300 min-h-[50%]">
                                 <p className="text-[13px] text-white font-semibold flex items-center gap-1.5 mb-1.5 drop-shadow-md">
                                     <Camera size={12} className="text-pink-400" />
