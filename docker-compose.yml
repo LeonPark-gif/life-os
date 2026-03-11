@@ -3,9 +3,7 @@ services:
   # 1. CORE: Life OS
   # ─────────────────────────────────────────────
   life-os:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/leonpark-gif/life-os:latest
     container_name: life-os
     restart: unless-stopped
     network_mode: host
