@@ -9,12 +9,12 @@ export class OllamaService {
 
             return {
                 baseUrl: systemConfig?.ollamaUrl || 'http://192.168.178.78:11434',
-                model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'phi3:mini'
+                model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'gemma3:4b'
             };
         } catch (e) {
             console.error("Could not fetch Ollama settings from store", e);
         }
-        return { baseUrl: 'http://192.168.178.78:11434', model: 'phi3:mini' };
+        return { baseUrl: 'http://192.168.178.78:11434', model: 'gemma3:4b' };
     }
 
     /**

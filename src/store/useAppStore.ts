@@ -416,7 +416,7 @@ const createSystemSlice: StateCreator<StoreState, [], [], SystemSlice> = (set) =
         haUrl: localStorage.getItem('life-os-ha-url') || '',
         haToken: localStorage.getItem('life-os-ha-token') || '',
         ollamaUrl: 'http://192.168.178.78:11434',
-        ollamaModel: 'phi3:mini',
+        ollamaModel: 'gemma3:4b',
     },
     updateSystemConfig: (updates) => set((state) => ({
         systemConfig: { ...state.systemConfig, ...updates }
@@ -439,7 +439,7 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
                 chatEnabled: true,
                 contextAwareness: true,
                 provider: 'local',
-                geminiModel: 'phi3:mini'
+                geminiModel: 'gemma3:4b'
             }
         }
     ],
@@ -562,7 +562,7 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
                 chatEnabled: true,
                 contextAwareness: true,
                 provider: 'local',
-                geminiModel: 'phi3:mini'
+                geminiModel: 'gemma3:4b'
             };
         }
         return user;

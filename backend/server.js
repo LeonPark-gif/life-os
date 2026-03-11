@@ -145,7 +145,7 @@ app.post('/api/ha/proxy', async (req, res) => {
 // DAILY BRIEFING ROUTE (OLLAMA)
 // ─────────────────────────────────────────────
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.178.78:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'phi3:mini'; // Match frontend default
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b'; // Match frontend default
 
 app.post('/api/briefing', async (req, res) => {
     try {
