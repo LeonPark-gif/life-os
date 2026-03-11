@@ -191,7 +191,7 @@ export default function MissionControl() {
 
     useEffect(() => {
         const pollableTypes = ['sensor', 'washer', 'dishwasher'];
-        const sensors = smarthomeDevices.filter(d => pollableTypes.includes(d.type) && d.entityId);
+        const sensors = smarthomeDevices.filter((d: any) => pollableTypes.includes(d.type) && d.entityId);
         if (sensors.length === 0) return;
 
         const checkSensors = async () => {
@@ -396,7 +396,7 @@ export default function MissionControl() {
                         </button>
                     </div>
 
-                    {smarthomeDevices.filter(d => ['sensor', 'washer', 'dishwasher'].includes(d.type)).map(sensor => {
+                    {smarthomeDevices.filter((d: any) => ['sensor', 'washer', 'dishwasher'].includes(d.type)).map((sensor: any) => {
                         const state = sensorStates[sensor.entityId];
                         if (!state?.done) return null;
 
@@ -425,7 +425,7 @@ export default function MissionControl() {
                     })}
 
                     <div className="grid grid-cols-2 gap-4">
-                        {smarthomeDevices.filter(d => ['light', 'switch', 'cover', 'climate', 'pc'].includes(d.type)).map(device => {
+                        {smarthomeDevices.filter((d: any) => ['light', 'switch', 'cover', 'climate', 'pc'].includes(d.type)).map((device: any) => {
                             const isOn = deviceStates[device.entityId] || false;
 
                             let Icon = Power;
@@ -474,7 +474,7 @@ export default function MissionControl() {
                                 </button>
                             );
                         })}
-                        {smarthomeDevices.filter(d => d.type === 'light' || d.type === 'switch').length === 0 && (
+                        {smarthomeDevices.filter((d: any) => d.type === 'light' || d.type === 'switch').length === 0 && (
                             <div className="col-span-2 text-center p-6 border border-white/5 border-dashed rounded-2xl text-gray-500 text-sm font-medium">
                                 Keine Geräte konfiguriert<br /><span className="text-xs text-gray-600 mt-1 block">Tippe auf das Blitz-Icon</span>
                             </div>
