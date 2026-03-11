@@ -94,8 +94,9 @@ services:
     volumes:
       - paperless-data:/usr/src/paperless/data
       - paperless-media:/usr/src/paperless/media
-      - ./data:/usr/src/paperless/data
-      - "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan:/consume"
+      - type: bind
+        source: "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan"
+        target: /usr/src/paperless/consume
 
   # ─────────────────────────────────────────────
   # 4. FINANCES: Firefly III Stack
