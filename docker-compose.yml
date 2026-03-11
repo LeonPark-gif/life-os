@@ -12,6 +12,11 @@ services:
     volumes:
       - life-os-config:/config
       - life-os-logs:/app/logs
+    labels:
+      io.casaos.app.name: "Life OS"
+      io.casaos.app.icon: "https://raw.githubusercontent.com/LeonPark-gif/life-os/main/public/logo.png"
+      io.casaos.app.description: "Dein persönlicher KI-Assistent & Dashboard"
+      io.casaos.app.port: "8099"
     # ports and networks removed for host mode
 
     # ─────────────────────────────────────────────
@@ -91,12 +96,14 @@ services:
       - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_to_random_string}
       - PAPERLESS_TIME_ZONE=Europe/Berlin
       - PAPERLESS_OCR_LANGUAGE=deu
-    volumes:
-      - paperless-data:/usr/src/paperless/data
-      - paperless-media:/usr/src/paperless/media
       - type: bind
         source: "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan"
         target: /usr/src/paperless/consume
+    labels:
+      io.casaos.app.name: "Paperless-ngx"
+      io.casaos.app.icon: "https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docs/static/paperless-ngx-logo.svg"
+      io.casaos.app.description: "Dokumentenmanagement System"
+      io.casaos.app.port: "8000"
 
   # ─────────────────────────────────────────────
   # 4. FINANCES: Firefly III Stack
@@ -133,6 +140,11 @@ services:
       - TZ=Europe/Berlin
     volumes:
       - firefly-upload:/var/www/html/storage/upload
+    labels:
+      io.casaos.app.name: "Firefly III"
+      io.casaos.app.icon: "https://raw.githubusercontent.com/firefly-iii/firefly-iii/main/public/v1/images/apple-touch-icon.png"
+      io.casaos.app.description: "Finanzmanagement & Budgetierung"
+      io.casaos.app.port: "8080"
 
   firefly-importer:
     image: fireflyiii/data-importer:latest
