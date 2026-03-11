@@ -20,9 +20,9 @@ export class OllamaService {
     /**
      * Internal helper to handle Direct + Relay fetch logic
      */
-    private async callOllama(path: string, payload: any): Promise<any> {
+    private async callOllama(path: string, payload: any, urlOverride?: string): Promise<any> {
         const settings = this.getApiSettings();
-        const fullUrl = `${settings.baseUrl}${path}`;
+        const fullUrl = `${urlOverride || settings.baseUrl}${path}`;
 
         try {
             // 1. Direct fetch (best performance if CORS is allowed)
@@ -53,7 +53,7 @@ export class OllamaService {
                     body: JSON.stringify({
                         ...payload,
                         model: payload.model || settings.model,
-                        ollamaUrl: settings.baseUrl
+                        ollamaUrl: urlOverride || settings.baseUrl
                     })
                 });
 
@@ -309,7 +309,7 @@ Sonst antworte mit einem reinen JSON-Array an Zutaten (ohne Markdown, nur ["Zuta
         }
     }
 
-    async generateBriefing(routineName: string, contextData: any): Promise<string> {
+    async generateBriefing(routineName: string, contextData: any, urlOverride?: string, modelOverride?: string): Promise<string> {
         const prompt = `Erstelle ein kurzes, sarkastisches KI-Briefing (als Passiv-Aggressiver 25-jähriger Kumpel) für die Routine "${routineName}".
 Wetter: ${contextData.weather}
 Aufgaben: ${contextData.tasks}
@@ -318,8 +318,9 @@ Fasse dich kurz (max 3 Sätze).`;
 
         const data = await this.callOllama('/api/generate', {
             prompt: prompt,
+            model: modelOverride,
             stream: false
-        });
+        }, urlOverride);
 
         return data.response?.trim() || "Kein Briefing.";
     }

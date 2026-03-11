@@ -16,6 +16,8 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
     const events = useAppStore(state => state.events);
     const lists = useAppStore(state => state.lists);
     const habits = useAppStore(state => state.habits);
+    const systemConfig = useAppStore(state => state.systemConfig);
+    const activeUser = useAppStore(state => state.currentUser());
 
     useEffect(() => {
         const fetchBriefing = async () => {
@@ -38,7 +40,7 @@ export default function BriefingOverlay({ onClose }: BriefingOverlayProps) {
                     habits: `${habits.map((h: any) => h.name).join(', ')}`
                 };
 
-                const briefingText = await ollamaService.generateBriefing("Tagesbriefing", contextData);
+                const briefingText = await ollamaService.generateBriefing("Tagesbriefing", contextData, systemConfig.ollamaUrl, activeUser.aiSettings?.geminiModel || systemConfig.ollamaModel);
                 setBriefing(briefingText);
 
             } catch (e: any) {

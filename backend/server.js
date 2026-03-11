@@ -406,8 +406,8 @@ app.post('/v1/chat/completions', async (req, res) => {
             }
         }
 
-        // 3. Override model for Ollama
-        body.model = OLLAMA_MODEL;
+        // 3. Set model for Ollama, prioritizing the request body over the default
+        body.model = body.model || OLLAMA_MODEL;
 
         console.log(`[Voice] Intercepted chat completion request. Forwarding to Ollama: ${OLLAMA_URL}/v1/chat/completions`);
 

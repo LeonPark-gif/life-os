@@ -10,6 +10,7 @@ export default function AIChatWidget() {
     const currentUser = useAppStore(state => state.currentUser);
     const addChatMessage = useAppStore(state => state.addChatMessage);
     const clearChatHistory = useAppStore(state => state.clearChatHistory);
+    const systemConfig = useAppStore(state => state.systemConfig);
     const userObj = currentUser();
     const aiSettings = userObj.aiSettings;
     const messages = userObj.chatHistory || [];
@@ -106,6 +107,7 @@ export default function AIChatWidget() {
                         messages: messages.map(m => ({ role: m.role, content: m.text })).concat([{ role: 'user', content: userMsg.text }]),
                         fileContext: fileContent,
                         fileName: attachedFile?.name,
+                        model: aiSettings?.geminiModel || systemConfig.ollamaModel,
                         stream: false
                     })
                 });
