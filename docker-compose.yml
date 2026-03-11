@@ -95,6 +95,8 @@ services:
       - PAPERLESS_TIME_ZONE=Europe/Berlin
       - PAPERLESS_OCR_LANGUAGE=deu
     volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
       - type: bind
         source: "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan"
         target: /usr/src/paperless/consume
