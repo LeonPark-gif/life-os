@@ -96,6 +96,7 @@ services:
       - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_to_random_string}
       - PAPERLESS_TIME_ZONE=Europe/Berlin
       - PAPERLESS_OCR_LANGUAGE=deu
+    volumes:
       - type: bind
         source: "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan"
         target: /usr/src/paperless/consume
