@@ -8,7 +8,7 @@ export class OllamaService {
             const systemConfig = state.systemConfig;
 
             return {
-                baseUrl: systemConfig?.ollamaUrl || 'http://192.168.178.78:11434',
+                baseUrl: systemConfig?.ollamaUrl ? systemConfig.ollamaUrl.replace(/\/+$/, '').replace(/\/api$/, '') : 'http://192.168.178.78:11434',
                 model: activeUser?.aiSettings?.geminiModel || systemConfig?.ollamaModel || 'gemma3:4b'
             };
         } catch (e) {
@@ -22,7 +22,8 @@ export class OllamaService {
      */
     private async callOllama(path: string, payload: any, urlOverride?: string): Promise<any> {
         const settings = this.getApiSettings();
-        const fullUrl = `${urlOverride || settings.baseUrl}${path}`;
+        const base = urlOverride ? urlOverride.replace(/\/+$/, '').replace(/\/api$/, '') : settings.baseUrl;
+        const fullUrl = `${base}${path}`;
 
         try {
             // 1. Direct fetch (best performance if CORS is allowed)

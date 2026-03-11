@@ -9,6 +9,9 @@ services:
     container_name: life-os
     restart: unless-stopped
     network_mode: host
+    volumes:
+      - life-os-config:/config
+      - life-os-logs:/app/logs
     # ports and networks removed for host mode
 
     # ─────────────────────────────────────────────
@@ -88,6 +91,11 @@ services:
       - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_me_to_random_string}
       - PAPERLESS_TIME_ZONE=Europe/Berlin
       - PAPERLESS_OCR_LANGUAGE=deu
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - ./data:/usr/src/paperless/data
+      - "/DATA/AppData/big-bear-nextcloud/html/data/Leon Da Silva/files/KI-Scan:/consume"
 
   # ─────────────────────────────────────────────
   # 4. FINANCES: Firefly III Stack
@@ -122,6 +130,8 @@ services:
       - DB_USERNAME=firefly
       - DB_PASSWORD=${FIREFLY_DB_PASS:-firefly_db_secret}
       - TZ=Europe/Berlin
+    volumes:
+      - firefly-upload:/var/www/html/storage/upload
 
   firefly-importer:
     image: fireflyiii/data-importer:latest
@@ -134,7 +144,6 @@ services:
       - FIREFLY_III_URL=http://localhost:8080
       - VANITY_URL=${FIREFLY_URL:-http://localhost:8080}
       - FIREFLY_III_ACCESS_TOKEN=${FIREFLY_PAT_TOKEN:-}
-      - CONNECTION_TIMEOUT=31.14
 
   # ─────────────────────────────────────────────
   # 5. VOICE: Wyoming Pipeline (Local STT & TTS)

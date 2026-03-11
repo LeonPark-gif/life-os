@@ -150,8 +150,11 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b'; // Match frontend 
 app.post('/api/briefing', async (req, res) => {
     try {
         const { date, calendarEvents, tasks, habits, ollamaUrl, model } = req.body;
-        const TARGET_OLLAMA_URL = ollamaUrl || OLLAMA_URL;
+        let TARGET_OLLAMA_URL = ollamaUrl || OLLAMA_URL;
         const TARGET_MODEL = model || OLLAMA_MODEL;
+        
+        // Remove trailing slash and /api suffix if the user accidentally included them
+        TARGET_OLLAMA_URL = TARGET_OLLAMA_URL.replace(/\/+$/, '').replace(/\/api$/, '');
 
         let prompt = `Du bist MACS, der sarkastische und humorvolle Desk-Buddy des Nutzers. 
 Generiere ein kurzes "Daily Briefing" für heute (${date}).
@@ -200,8 +203,10 @@ Hier sind die Daten für heute:
 app.post('/api/ollama/generate', async (req, res) => {
     try {
         const { prompt, model, ollamaUrl } = req.body;
-        const TARGET_URL = ollamaUrl || OLLAMA_URL;
+        let TARGET_URL = ollamaUrl || OLLAMA_URL;
         const TARGET_MODEL = model || OLLAMA_MODEL;
+        
+        TARGET_URL = TARGET_URL.replace(/\/+$/, '').replace(/\/api$/, '');
 
         console.log(`[Ollama Relay] Forwarding to ${TARGET_URL}...`);
         const response = await fetch(`${TARGET_URL}/api/generate`, {
@@ -229,7 +234,8 @@ app.post('/api/ollama/generate', async (req, res) => {
 app.post('/api/ollama/tags', async (req, res) => {
     try {
         const { ollamaUrl } = req.body;
-        const TARGET_URL = ollamaUrl || OLLAMA_URL;
+        let TARGET_URL = ollamaUrl || OLLAMA_URL;
+        TARGET_URL = TARGET_URL.replace(/\/+$/, '').replace(/\/api$/, '');
         const response = await fetch(`${TARGET_URL}/api/tags`);
         if (!response.ok) {
             const errTxt = await response.text();
