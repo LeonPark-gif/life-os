@@ -161,7 +161,7 @@ services:
   # 5. VOICE: Wyoming Pipeline (Local STT & TTS)
   # ─────────────────────────────────────────────
   whisper:
-    image: rhasspy/wyoming-whisper
+    image: rhasspy/wyoming-whisper:latest
     container_name: whisper
     restart: unless-stopped
     command: --model tiny-int8 --language de --beam-size 1
@@ -170,7 +170,7 @@ services:
     network_mode: host
 
   piper:
-    image: rhasspy/wyoming-piper
+    image: rhasspy/wyoming-piper:latest
     container_name: piper
     restart: unless-stopped
     command: --voice de_DE-thorsten-high
