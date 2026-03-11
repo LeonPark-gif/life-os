@@ -3,7 +3,7 @@ services:
   # 1. CORE: Life OS
   # ─────────────────────────────────────────────
   life-os:
-    image: ghcr.io/leonpark-gif/life-os:latest
+    build: .
     container_name: life-os
     restart: unless-stopped
     network_mode: host
