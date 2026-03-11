@@ -25,9 +25,11 @@ export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'system' | 'mail' | 'cloud' | 'calendar' | 'backup' | 'ai' | 'connections'>('profile');
     const [selectedMailUserId, setSelectedMailUserId] = useState<string>('admin');
     const [selectedCloudUserId, setSelectedCloudUserId] = useState<string>('admin');
+    const [selectedAiUserId, setSelectedAiUserId] = useState<string>('admin');
     const displayUsers = users.filter(u => !u.isHidden);
     const selectedMailUser = users.find(u => u.id === selectedMailUserId) || activeUser;
     const selectedCloudUser = users.find(u => u.id === selectedCloudUserId) || activeUser;
+    const selectedAiUser = users.find(u => u.id === selectedAiUserId) || activeUser;
 
     // Backup state
     const [backups, setBackups] = useState<BackupInfo[]>([]);
@@ -788,9 +790,20 @@ export default function AdminPanel() {
                 {activeTab === 'ai' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
                         <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-4">
-                            <h4 className="text-sm font-bold text-fuchsia-400 flex items-center gap-2">
-                                <Bot size={16} /> KI Einstellungen (Nutzer: {activeUser.name})
-                            </h4>
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-fuchsia-400 flex items-center gap-2">
+                                    <Bot size={16} /> KI Einstellungen (Nutzer: {selectedAiUser.name})
+                                </h4>
+                                <select 
+                                    value={selectedAiUserId} 
+                                    onChange={(e) => setSelectedAiUserId(e.target.value)}
+                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                                >
+                                    {displayUsers.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <p className="text-xs text-gray-400 leading-relaxed mb-4">
                                 Personalisiere, wie intelligent und proaktiv dein Life OS mitspielen soll.
                             </p>
@@ -802,8 +815,8 @@ export default function AdminPanel() {
                                         <div className="text-xs text-gray-500">Aktiviert die globale KI in deinem Account</div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" checked={activeUser.aiSettings?.enabled ?? true}
-                                            onChange={(e) => useAppStore.getState().updateAiSettings({ enabled: e.target.checked })} className="sr-only peer" />
+                                        <input type="checkbox" checked={selectedAiUser.aiSettings?.enabled ?? true}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ enabled: e.target.checked }, selectedAiUserId)} className="sr-only peer" />
                                         <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-fuchsia-500"></div>
                                     </label>
                                 </div>
@@ -813,8 +826,8 @@ export default function AdminPanel() {
                                         <div className="text-xs text-gray-500">Die KI schlägt dir Dinge vor (zB. Einkaufsliste aus Rezept)</div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" checked={activeUser.aiSettings?.proactiveHelp ?? true}
-                                            onChange={(e) => useAppStore.getState().updateAiSettings({ proactiveHelp: e.target.checked })} className="sr-only peer" />
+                                        <input type="checkbox" checked={selectedAiUser.aiSettings?.proactiveHelp ?? true}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ proactiveHelp: e.target.checked }, selectedAiUserId)} className="sr-only peer" />
                                         <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                                     </label>
                                 </div>
@@ -824,8 +837,8 @@ export default function AdminPanel() {
                                 <div>
                                     <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">KI-Provider (Für Cloud-LLMs)</label>
                                     <select
-                                        value={activeUser.aiSettings?.provider || 'local'}
-                                        onChange={(e) => useAppStore.getState().updateAiSettings({ provider: e.target.value as any })}
+                                        value={selectedAiUser.aiSettings?.provider || 'local'}
+                                        onChange={(e) => useAppStore.getState().updateAiSettings({ provider: e.target.value as any }, selectedAiUserId)}
                                         className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-500/50"
                                     >
                                         <option value="local">Lokal (Ollama) - Höchster Datenschutz</option>
@@ -834,13 +847,13 @@ export default function AdminPanel() {
                                     </select>
                                 </div>
 
-                                {activeUser.aiSettings?.provider === 'gemini' && (
+                                {selectedAiUser.aiSettings?.provider === 'gemini' && (
                                     <div className="animate-in fade-in slide-in-from-top-2">
                                         <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1">Gemini API Key</label>
                                         <input
                                             type="password"
-                                            value={activeUser.aiSettings?.geminiApiKey || ''}
-                                            onChange={(e) => useAppStore.getState().updateAiSettings({ geminiApiKey: e.target.value })}
+                                            value={selectedAiUser.aiSettings?.geminiApiKey || ''}
+                                            onChange={(e) => useAppStore.getState().updateAiSettings({ geminiApiKey: e.target.value }, selectedAiUserId)}
                                             placeholder="AIzaSy..."
                                             className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-fuchsia-500/50 block w-full"
                                         />

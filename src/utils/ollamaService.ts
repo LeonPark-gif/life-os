@@ -57,7 +57,10 @@ export class OllamaService {
                     })
                 });
 
-                if (!res.ok) throw new Error(`Ollama relay returned ${res.status}`);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => null);
+                    throw new Error(`Server Proxy meldet: ${errData?.error || res.status}`);
+                }
                 return await res.json();
             } catch (relayErr: any) {
                 console.error(`[OllamaService] Relay call to ${path} failed too:`, relayErr);

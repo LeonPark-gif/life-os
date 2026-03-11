@@ -214,7 +214,10 @@ app.post('/api/ollama/generate', async (req, res) => {
             })
         });
 
-        if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
+        if (!response.ok) {
+            const errTxt = await response.text();
+            throw new Error(`Ollama antwortete nicht mit OK (${response.status}): ${errTxt}`);
+        }
         const data = await response.json();
         res.json({ success: true, response: data.response });
     } catch (e) {
@@ -228,7 +231,10 @@ app.post('/api/ollama/tags', async (req, res) => {
         const { ollamaUrl } = req.body;
         const TARGET_URL = ollamaUrl || OLLAMA_URL;
         const response = await fetch(`${TARGET_URL}/api/tags`);
-        if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
+        if (!response.ok) {
+            const errTxt = await response.text();
+            throw new Error(`Ollama antwortete nicht mit OK (${response.status}): ${errTxt}`);
+        }
         const data = await response.json();
         res.json({ success: true, models: data.models || [] });
     } catch (e) {

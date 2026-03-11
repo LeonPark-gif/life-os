@@ -266,7 +266,7 @@ interface UserSlice {
     updateUser: (id: string, updates: Partial<User>) => void;
     updateGridLayouts: (id: string, breakpoint: 'mobile' | 'tablet' | 'desktop', layout: any[]) => void;
     updateUserLayout: (breakpoint: 'mobile' | 'tablet' | 'desktop', order: string[], sizes: Record<string, 'small' | 'medium' | 'large'>) => void;
-    updateAiSettings: (settings: Partial<AISettings>) => void; // New Action
+    updateAiSettings: (settings: Partial<AISettings>, userId?: string) => void; // New Action
     updateThemeConfig: (config: Partial<User['themeConfig']>) => void; // New Action
     updateColorLabel: (userId: string, color: string, label: string) => void;
     verifyPin: (userId: string, pin: string) => boolean;
@@ -624,8 +624,8 @@ const createUserSlice: StateCreator<StoreState, [], [], UserSlice> = (set, get) 
         })
     })),
 
-    updateAiSettings: (settings: Partial<AISettings>) => set((state) => ({
-        users: state.users.map(u => u.id === state.activeUserId ? {
+    updateAiSettings: (settings: Partial<AISettings>, userId?: string) => set((state) => ({
+        users: state.users.map(u => u.id === (userId || state.activeUserId) ? {
             ...u,
             aiSettings: { ...u.aiSettings, ...settings } as AISettings
         } : u)
