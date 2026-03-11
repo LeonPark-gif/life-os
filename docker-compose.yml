@@ -4,6 +4,7 @@ services:
   # ─────────────────────────────────────────────
   life-os:
     build: .
+    image: life-os:latest
     container_name: life-os
     restart: unless-stopped
     network_mode: host
@@ -21,7 +22,7 @@ services:
     # 2. UPDATER: Watchtower
     # ─────────────────────────────────────────────
   watchtower:
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest
     container_name: watchtower
     restart: unless-stopped
     volumes:
